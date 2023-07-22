@@ -2,9 +2,9 @@
     Copyright (c) 2023 Takayoshi Matsumoto
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
+#pragma once
 
-#ifndef INTERSECTION_MARKER_NODE_H
-#define INTERSECTION_MARKER_NODE_H
+#include "SpatialDivisionKernel.h"
 
 #include <string>
 #include <vector>
@@ -18,16 +18,14 @@
 #include <maya/MString.h>
 #include <maya/MTypeId.h>
 
-#define MESH_A             "meshA"
-#define MESH_B             "meshB"
+#define MESH_A             "inMeshA"
+#define MESH_B             "inMeshB"
 
-#define VERTEX_CHECKSUM    "vertexChecksum"
 #define VERTEX_CHECKSUM_A  "vertexChecksumA"
 #define VERTEX_CHECKSUM_B  "vertexChecksumB"
 
 #define KERNEL             "kernel"
-
-using namespace std;
+#define OUTPUT_INTERSECTED "outputIntersected"
 
 
 class IntersectionMarkerNode : MPxNode
@@ -44,14 +42,17 @@ public:
     static MStatus      setValue(MFnDependencyNode &fnNode, const char* attributeName, int &value);
     static MStatus      getValue(MFnDependencyNode &fnNode, const char* attributeName, int &value);
 
-    static MStatus      setValues(MFnDependencyNode &fnNode, const char* attributeName, vector<int> &values);
-    static MStatus      getValues(MFnDependencyNode &fnNode, const char* attributeName, vector<int> &values);
+    static MStatus      setValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values);
+    static MStatus      getValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values);
     
     static MStatus      onInitializePlugin();
     static MStatus      onUninitializePlugin();
 
-    static MStatus      getCacheKey(MObject &node, string &key);
-    static MStatus      getCacheKeyFromMesh(MDagPath &node, string &key);
+    static MStatus      getCacheKey(MObject &node, std::string &key);
+    static MStatus      getCacheKeyFromMesh(MObject &meshObjA, MObject &meshObjB, std::string &key);
+
+    std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
+    MIntArray           checkIntersections(MObject meshObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
 
 public:
     static MObject      meshA;
@@ -59,12 +60,11 @@ public:
 
     static MObject      vertexChecksumA;
     static MObject      vertexChecksumB;
-    static MObject      kernel;
+    static MObject      kernelType;
 
-    static MObject      result;
+    static MObject      outputIntersected;
     
     static MString      NODE_NAME;
     static MTypeId      NODE_ID;
-};
 
-#endif 
+};
