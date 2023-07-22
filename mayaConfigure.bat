@@ -1,3 +1,4 @@
+echo off
 setlocal
 
 SET MAYA_VERSION=2023
@@ -32,6 +33,3 @@ cmake ^
     -G "%COMPILER%" ..\
 
 cmake --build . --config Release --target Install
-
-pause
-
