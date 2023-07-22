@@ -1,0 +1,5 @@
++ MAYAVERSION:@MAYA_VERSION@ @PROJECT_NAME@ any @PROJECT_NAME@
+plug-ins: plug-ins/win64/@MAYA_VERSION@
+scripts: scripts
+icons: icons
+
