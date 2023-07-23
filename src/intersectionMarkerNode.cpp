@@ -9,6 +9,7 @@
 #include "OctreeKernel.h"
 
 #include <string>
+#include <unordered_set>
 
 #include <maya/MDagPath.h>
 #include <maya/MDataBlock.h>
@@ -17,29 +18,32 @@
 #include <maya/MItMeshPolygon.h>
 #include <maya/MPointArray.h>
 #include <maya/MFnIntArrayData.h>
-#include <maya/MFnArrayAttrsData.h>
-#include <maya/MArrayDataBuilder.h>
-#include <maya/MArrayDataHandle.h>
+// #include <maya/MFnArrayAttrsData.h>
+// #include <maya/MArrayDataBuilder.h>
+// #include <maya/MArrayDataHandle.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnNumericAttribute.h>
 #include <maya/MFnEnumAttribute.h>
 #include <maya/MFnNumericData.h>
 #include <maya/MFnTypedAttribute.h>
+#include <maya/MFnMatrixAttribute.h>
 #include <maya/MGlobal.h>
 #include <maya/MPlug.h>
 #include <maya/MPxNode.h>
 #include <maya/MObject.h>
-#include <maya/MObjectHandle.h>
 #include <maya/MMatrix.h>
+#include <maya/MDGModifier.h>
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
+MObject IntersectionMarkerNode::offsetMatrix;
 
 MObject IntersectionMarkerNode::vertexChecksumA;
 MObject IntersectionMarkerNode::vertexChecksumB;
 MObject IntersectionMarkerNode::kernelType;
 
 MObject IntersectionMarkerNode::outputIntersected;
+MObject IntersectionMarkerNode::outMesh;
 
 IntersectionMarkerNode::IntersectionMarkerNode() {}
 IntersectionMarkerNode::~IntersectionMarkerNode() {}
@@ -55,8 +59,9 @@ MStatus IntersectionMarkerNode::initialize()
 {
     MStatus status;
 
-    MFnTypedAttribute tOputAttr;  // means writable output attribute
+    MFnTypedAttribute tOutputAttr;  // means writable output attribute
     MFnTypedAttribute tInputAttr;  // meanst read-only input attribute
+    MFnMatrixAttribute mAttr;
     MFnNumericAttribute nAttr;
     MFnEnumAttribute eAttr;
 
@@ -68,6 +73,11 @@ MStatus IntersectionMarkerNode::initialize()
     // Initialize Mesh B
     meshB = tInputAttr.create(MESH_B, MESH_B, MFnData::kMesh, MObject::kNullObj, &status);
     status = addAttribute(meshB);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    // Initialize Offset Matrix
+    offsetMatrix = mAttr.create(OFFSET_MATRIX, OFFSET_MATRIX);
+    status = addAttribute(offsetMatrix);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Vertex Checksum of Mesh A
@@ -95,12 +105,21 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Output Intersected
-    outputIntersected = tOputAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnData::kIntArray);
-    tOputAttr.setStorable(false);
-    tOputAttr.setKeyable(false);
-    tOputAttr.setWritable(false);
-    tOputAttr.setReadable(true);
+    outputIntersected = tOutputAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnData::kIntArray);
+    tOutputAttr.setStorable(false);
+    tOutputAttr.setKeyable(false);
+    tOutputAttr.setWritable(false);
+    tOutputAttr.setReadable(true);
     status = addAttribute(outputIntersected);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    // Initialize Output Mesh
+    outMesh = tOutputAttr.create(OUT_MESH, OUT_MESH, MFnData::kMesh);
+    tOutputAttr.setStorable(false);
+    tOutputAttr.setKeyable(false);
+    tOutputAttr.setWritable(false);
+    tOutputAttr.setReadable(true);
+    status = addAttribute(outMesh);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Add dependencies
@@ -110,11 +129,30 @@ MStatus IntersectionMarkerNode::initialize()
     status = attributeAffects(meshB, vertexChecksumB);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
+    status = attributeAffects(offsetMatrix, vertexChecksumA);
+    status = attributeAffects(offsetMatrix, vertexChecksumB);
+    status = attributeAffects(offsetMatrix, outputIntersected);
+    status = attributeAffects(meshA, outputIntersected);
+    status = attributeAffects(meshB, outputIntersected);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
     status = attributeAffects(kernelType, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     status = attributeAffects(vertexChecksumA, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     status = attributeAffects(vertexChecksumB, outputIntersected);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    status = attributeAffects(offsetMatrix, outMesh);
+    status = attributeAffects(meshA, outMesh);
+    status = attributeAffects(meshB, outMesh);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    status = attributeAffects(kernelType, outMesh);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    status = attributeAffects(vertexChecksumA, outMesh);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    status = attributeAffects(vertexChecksumB, outMesh);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     return MS::kSuccess;
@@ -131,10 +169,9 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
     // Check if the plug parameter corresponds to the attribute that this node
     // is supposed to handle
-    if (plug != outputIntersected) {
-        // return MStatus::kUnknownParameter;
+    if (plug != outMesh) {
+        return MStatus::kUnknownParameter;
     }
-
 
     // Get necessary input data from the dataBlock. This is usually data from
     // the input attributes of the node.
@@ -145,26 +182,19 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     // Get the MObject of the meshes
     MObject meshAObject = meshAHandle.asMesh();
     MObject meshBObject = meshBHandle.asMesh();
+    MMatrix offset = dataBlock.inputValue(offsetMatrix).asMatrix();
     // -------------------------------------------------------------------------------------------
 
     // Get the dag path of the meshes
     MGlobal::displayInfo("get dag path of the meshes...");
-    // MFnMesh fnMeshA(meshAObject);
-    // MFnMesh fnMeshB(meshBObject);
-    // MDagPath dagPathA;
-    // MDagPath dagPathB;
-    // fnMeshA.getPath(dagPathA);
-    // fnMeshB.getPath(dagPathB);
 
     // update checksums
     MGlobal::displayInfo("update checksums...");
     int newCheckA = getVertexChecksum(meshAObject);
     int newCheckB = getVertexChecksum(meshBObject);
 
-    MDataHandle vertexChecksumAHandle = dataBlock.outputValue(vertexChecksumA, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    MDataHandle vertexChecksumBHandle = dataBlock.outputValue(vertexChecksumB, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    MDataHandle vertexChecksumAHandle = dataBlock.outputValue(vertexChecksumA);
+    MDataHandle vertexChecksumBHandle = dataBlock.outputValue(vertexChecksumB);
 
     int checkA = vertexChecksumAHandle.asInt();
     int checkB = vertexChecksumBHandle.asInt();
@@ -183,32 +213,62 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
     // Build kernel
     MGlobal::displayInfo("build kernel...");
-    // MDataHandle kernelTypeHandle = dataBlock.inputValue(kernelType, &status);
-    // CHECK_MSTATUS_AND_RETURN_IT(status);
-    // int kernelType = kernelTypeHandle.asShort();
 
     std::unique_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
-    bbox = getBoundingBox(meshA);
+    MBoundingBox bbox = getBoundingBox(meshA);
+    bbox.transformUsing(offset);
+    MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
     status = kernel->build(meshAObject, bbox);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     MIntArray intersectedTriangleIDs = checkIntersections(meshBObject, std::move(kernel));
 
     // Get output data handle
-    MDataHandle outputHandle = dataBlock.outputValue(outputIntersected, &status);
+    MDataHandle outputIntersectedHandle = dataBlock.outputValue(outputIntersected, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     MFnIntArrayData outputData;
     MObject outputDataObject = outputData.create(intersectedTriangleIDs, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Set the output data handle
-    outputHandle.set(outputDataObject);
+    outputIntersectedHandle.set(outputDataObject);
+    MDataHandle outputMeshHandle = dataBlock.outputValue(outMesh, &status);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
 
+    MFnMesh outputMeshFn(outputMeshHandle.asMesh());
+    MFnMesh inputMeshFn(meshAObject);
+
+    if (inputMeshFn.numPolygons() != intersectedTriangleIDs.length()) {
+        // Create a new mesh
+
+        outputMeshHandle.set(meshAObject);
+
+        // Create a set of all polygon indices
+        int numPolygons = outputMeshFn.numPolygons();
+        std::unordered_set<int> polygonIndices;
+        for (int i = 0; i < numPolygons; ++i) {
+            polygonIndices.insert(i);
+        }
+
+        // and remove the intersected triangles.
+        for (unsigned int i = 0; i < intersectedTriangleIDs.length(); ++i) {
+            polygonIndices.erase(intersectedTriangleIDs[i]);
+        }
+
+        // Collapse the non intersected triangles into one face
+        MIntArray polygonIndicesArray;
+        for (const auto &index : polygonIndices) {
+            polygonIndicesArray.append(index);
+        }
+        outputMeshFn.collapseFaces(polygonIndicesArray);
+    }
+     
     // Mark the output data handle as clean
-    // kernelTypeHandle.setClean();
+    outputMeshHandle.setClean();
+
     meshAHandle.setClean();
     meshBHandle.setClean();
-    outputHandle.setClean();
+    outputIntersectedHandle.setClean();
     dataBlock.setClean(plug);
 
     return MStatus::kSuccess;
@@ -418,8 +478,6 @@ MStatus IntersectionMarkerNode::getInputDagMesh(const MObject inputAttr, MFnMesh
     MDagPath sourceDagPath;
     sourceDagNode.getPath(sourceDagPath);
     outMesh.setObject(sourceDagPath);
-    MBoundingBox bbox = outMesh.boundingBox();
-    MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
     
     return MStatus::kSuccess; 
 }
@@ -436,7 +494,6 @@ MBoundingBox IntersectionMarkerNode::getBoundingBox(const MObject &meshObject) c
     // TODO: check the MSatus
     getInputDagMesh(meshObject, fnMesh);
     MBoundingBox bbox = fnMesh.boundingBox();
-    MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
 
     return bbox;
 }

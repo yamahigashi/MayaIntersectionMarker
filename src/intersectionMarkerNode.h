@@ -20,12 +20,14 @@
 
 #define MESH_A             "inMeshA"
 #define MESH_B             "inMeshB"
+#define OFFSET_MATRIX      "offsetMatrix"
 
 #define VERTEX_CHECKSUM_A  "vertexChecksumA"
 #define VERTEX_CHECKSUM_B  "vertexChecksumB"
 
 #define KERNEL             "kernel"
 #define OUTPUT_INTERSECTED "outputIntersected"
+#define OUT_MESH           "outMesh"
 
 
 class IntersectionMarkerNode : MPxNode
@@ -55,16 +57,19 @@ public:
     MIntArray           checkIntersections(MObject meshObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
     MStatus             getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
     MBoundingBox        getBoundingBox(const MObject &meshObject) const;
+    MStatus             createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
 
 public:
     static MObject      meshA;
     static MObject      meshB;
+    static MObject      offsetMatrix;
 
     static MObject      vertexChecksumA;
     static MObject      vertexChecksumB;
     static MObject      kernelType;
 
     static MObject      outputIntersected;
+    static MObject      outMesh;
     
     static MString      NODE_NAME;
     static MTypeId      NODE_ID;
