@@ -32,11 +32,13 @@
 #include <maya/MPxNode.h>
 #include <maya/MObject.h>
 #include <maya/MMatrix.h>
+#include <maya/MVector.h>
 #include <maya/MDGModifier.h>
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
 MObject IntersectionMarkerNode::offsetMatrix;
+MObject IntersectionMarkerNode::restIntersected;
 
 MObject IntersectionMarkerNode::vertexChecksumA;
 MObject IntersectionMarkerNode::vertexChecksumB;
@@ -80,6 +82,15 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(offsetMatrix);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
+    // Initialize Rest Intersected
+    restIntersected = nAttr.create(REST_INTERSECTED, REST_INTERSECTED, MFnNumericData::kInt, -1);
+    nAttr.setStorable(true);
+    nAttr.setKeyable(false);
+    nAttr.setWritable(false);
+    nAttr.setReadable(true);
+    status = addAttribute(restIntersected);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
     // Initialize Vertex Checksum of Mesh A
     vertexChecksumA = nAttr.create(VERTEX_CHECKSUM_A, VERTEX_CHECKSUM_A, MFnNumericData::kInt, -1);
     nAttr.setStorable(true);
@@ -105,11 +116,11 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Output Intersected
-    outputIntersected = tOutputAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnData::kIntArray);
-    tOutputAttr.setStorable(false);
-    tOutputAttr.setKeyable(false);
-    tOutputAttr.setWritable(false);
-    tOutputAttr.setReadable(true);
+    outputIntersected = nAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnNumericData::kBoolean, 0);
+    nAttr.setStorable(true);
+    nAttr.setKeyable(false);
+    nAttr.setWritable(false);
+    nAttr.setReadable(true);
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -221,48 +232,37 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     status = kernel->build(meshAObject, bbox);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    MIntArray intersectedTriangleIDs = checkIntersections(meshBObject, std::move(kernel));
+    std::unordered_set<int> intersectedIds = checkIntersections(meshAObject, meshBObject, std::move(kernel));
 
     // Get output data handle
     MDataHandle outputIntersectedHandle = dataBlock.outputValue(outputIntersected, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    MFnIntArrayData outputData;
-    MObject outputDataObject = outputData.create(intersectedTriangleIDs, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    outputIntersectedHandle.set(intersectedIds.size() > 0);
+    outputIntersectedHandle.setClean();
 
-    // Set the output data handle
-    outputIntersectedHandle.set(outputDataObject);
+    // -------------------------------------------------------------------------------------------
     MDataHandle outputMeshHandle = dataBlock.outputValue(outMesh, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     MFnMesh outputMeshFn(outputMeshHandle.asMesh());
-    MFnMesh inputMeshFn(meshAObject);
 
-    if (inputMeshFn.numPolygons() != intersectedTriangleIDs.length()) {
-        // Create a new mesh
+    outputMeshHandle.set(meshAObject);
 
-        outputMeshHandle.set(meshAObject);
-
-        // Create a set of all polygon indices
-        int numPolygons = outputMeshFn.numPolygons();
-        std::unordered_set<int> polygonIndices;
-        for (int i = 0; i < numPolygons; ++i) {
-            polygonIndices.insert(i);
-        }
-
-        // and remove the intersected triangles.
-        for (unsigned int i = 0; i < intersectedTriangleIDs.length(); ++i) {
-            polygonIndices.erase(intersectedTriangleIDs[i]);
-        }
-
-        // Collapse the non intersected triangles into one face
-        MIntArray polygonIndicesArray;
-        for (const auto &index : polygonIndices) {
-            polygonIndicesArray.append(index);
-        }
-        outputMeshFn.collapseFaces(polygonIndicesArray);
+    // Create a set of all polygon indices
+    int numVertices = outputMeshFn.numVertices();
+    std::unordered_set<int> vertexIds;
+    for (int i = 0; i < numVertices; ++i) {
+        vertexIds.insert(i);
     }
-     
+
+    for (const auto &id : intersectedIds) {
+        vertexIds.erase(id);
+    }
+
+    // For each non-intersected polygon
+    for (const auto &index : vertexIds) {
+        outputMeshFn.setPoint(index, MPoint(0, 0, 0));
+    }
+
     // Mark the output data handle as clean
     outputMeshHandle.setClean();
 
@@ -275,28 +275,29 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 }
 
 
-MIntArray IntersectionMarkerNode::checkIntersections(MObject meshObject, std::unique_ptr<SpatialDivisionKernel> kernel) const
+std::unordered_set<int> IntersectionMarkerNode::checkIntersections(MObject meshAObject, MObject meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel) const
 {
     MStatus status;
     TriangleData triangle;
-    MIntArray intersectedTriangleIDs;
+    std::unordered_set<int> intersectedVertexSet;
     MGlobal::displayInfo("checkIntersections...");
 
-    // Iterate through the triangles in meshB
-    MItMeshPolygon itPoly(meshObject);
-    int numTrianglesB = itPoly.count();
-    for (int i = 0; i < numTrianglesB; i++) {
+    // Iterate through the polygons in meshB
+    MItMeshPolygon itPolyA(meshAObject);
+    MItMeshPolygon itPolyB(meshBObject);
+    MPointArray vertices;
+    MIntArray vertexList;
+    int numPolygons = itPolyB.count();
+    for (int i = 0; i < numPolygons; i++) {
         int prevIndex;
-        status = itPoly.setIndex(i, prevIndex);
+        status = itPolyB.setIndex(i, prevIndex);
 
         int numTriangles;
-        itPoly.numTriangles(numTriangles);
+        itPolyB.numTriangles(numTriangles);
 
         for (int j = 0; j < numTriangles; ++j) {
             // Get the vertices of the triangle
-            MPointArray vertices;
-            MIntArray vertexList;
-            itPoly.getTriangle(j, vertices, vertexList, MSpace::kWorld);
+            itPolyB.getTriangle(j, vertices, vertexList, MSpace::kWorld);
 
             triangle.vertices[0] = vertices[0];
             triangle.vertices[1] = vertices[1];
@@ -305,16 +306,51 @@ MIntArray IntersectionMarkerNode::checkIntersections(MObject meshObject, std::un
             // Check intersection between triangle and the octree (kernel)
             std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
 
-            // If there is any intersection, store the intersection data into outputDataHandle
+            // If there is any intersection, store the intersection data into intersectedVertexSet
+            bool hit = false;
             if (!intersectedTriangles.empty()) {
-                intersectedTriangleIDs.append(i);
-                continue;
+                TriangleData intersectedTriangle;
+                for(int k = 0; k < intersectedTriangles.size(); ++k) {
+                    intersectedTriangle = intersectedTriangles[k];
+                    hit = checkIntersectionsDetailed(intersectedTriangle, triangle);
+                    if (hit) {
+                        intersectedVertexSet.insert(intersectedTriangle.faceIndex);
+                        itPolyA.getTriangle(intersectedTriangle.faceIndex, vertices, vertexList, MSpace::kWorld);
+                        for(unsigned int l = 0; l < vertexList.length(); ++l) {
+                            intersectedVertexSet.insert(vertexList[l]);
+                        }
+                        // break;
+                    }
+                }
             }
+
         }
     }
 
-    MGlobal::displayInfo(MString("intersectedTriangleIDs is ") + std::to_wstring(intersectedTriangleIDs.length()).c_str());
-    return intersectedTriangleIDs;
+    MGlobal::displayInfo(MString("Size of intersectedVertexSet is ") + std::to_wstring(intersectedVertexSet.size()).c_str());
+    return intersectedVertexSet;
+}
+
+
+/// Check if the triangle intersects with the plane
+bool IntersectionMarkerNode::checkIntersectionsDetailed(TriangleData triA, TriangleData triB) const
+{
+
+    MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
+    MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
+
+    for (int k = 0; k < 3; ++k) {
+        MPoint edgeStart = triB.vertices[k];
+        MPoint edgeEnd = triB.vertices[(k+1)%3];
+
+        // Check intersection between triangle edge and the plane
+        bool hit = isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd);
+        if (hit) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

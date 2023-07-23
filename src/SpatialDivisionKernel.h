@@ -6,6 +6,7 @@
 #include <maya/MStatus.h>
 
 struct TriangleData {
+    int faceIndex;
     MPoint vertices[3];
 };
 

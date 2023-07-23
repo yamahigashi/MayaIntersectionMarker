@@ -43,6 +43,7 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
             triangle.vertices[0] = points[0];
             triangle.vertices[1] = points[1];
             triangle.vertices[2] = points[2];
+            triangle.faceIndex = itPoly.index();
 
             // Add the triangle to the octree
             insertTriangle(root, triangle);

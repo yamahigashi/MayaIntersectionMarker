@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include <maya/MDagPath.h>
 #include <maya/MDataHandle.h>
@@ -21,6 +22,7 @@
 #define MESH_A             "inMeshA"
 #define MESH_B             "inMeshB"
 #define OFFSET_MATRIX      "offsetMatrix"
+#define REST_INTERSECTED   "restIntersected"
 
 #define VERTEX_CHECKSUM_A  "vertexChecksumA"
 #define VERTEX_CHECKSUM_B  "vertexChecksumB"
@@ -54,15 +56,17 @@ public:
     static MStatus      getCacheKeyFromMesh(MObject &meshObjA, MObject &meshObjB, std::string &key);
 
     std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
-    MIntArray           checkIntersections(MObject meshObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
+    std::unordered_set<int>                IntersectionMarkerNode::checkIntersections(MObject meshAObject, MObject meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
     MStatus             getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
     MBoundingBox        getBoundingBox(const MObject &meshObject) const;
     MStatus             createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
+    bool                checkIntersectionsDetailed(TriangleData triA, TriangleData triB) const;
 
 public:
     static MObject      meshA;
     static MObject      meshB;
     static MObject      offsetMatrix;
+    static MObject      restIntersected;
 
     static MObject      vertexChecksumA;
     static MObject      vertexChecksumB;

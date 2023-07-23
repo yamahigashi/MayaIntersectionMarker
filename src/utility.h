@@ -12,6 +12,7 @@
 #include <maya/MGlobal.h>
 #include <maya/MItMeshVertex.h>
 #include <maya/MIntArray.h>
+#include <maya/MVector.h>
 
 
 class PolyChecksum
@@ -97,4 +98,26 @@ int getVertexChecksum(MObject polyObject)
     }
 
     return checksum.getResult();
+}
+
+
+inline MVector computePlaneNormal(const MPoint& p1, const MPoint& p2, const MPoint& p3) {
+    MVector v1 = p2 - p1;
+    MVector v2 = p3 - p1;
+    return v1 ^ v2; // cross product gives the normal
+}
+
+
+inline MVector computePlaneOrigin(const MPoint& p1, const MPoint& p2, const MPoint& p3) {
+    return (p1 + p2 + p3) / 3.0; // average gives the center of the triangle
+}
+
+
+inline bool isEdgeIntersectingPlane(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd) {
+    // calculate the dot products
+    double dotProduct1 = MVector(edgeStart - planeOrigin) * planeNormal;
+    double dotProduct2 = MVector(edgeEnd - planeOrigin) * planeNormal;
+
+    // check if the edge crosses the plane
+    return dotProduct1 * dotProduct2 < 0;
 }
