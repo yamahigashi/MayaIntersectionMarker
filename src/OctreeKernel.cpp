@@ -60,12 +60,10 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
     if (node->isLeaf()) {
         if (node->triangles.size() < MAX_TRIANGLES_PER_NODE) {
             // If this leaf node can still hold more triangles, add it here
-            MGlobal::displayInfo("Triangle added to node1");
             node->triangles.push_back(triangle);
         } else {
             // If this leaf node is full, split it and then try to add the triangle again
             splitNode(node);
-            MGlobal::displayInfo("Triangle added to node2");
             insertTriangle(node, triangle);
         }
     } else {
@@ -73,7 +71,6 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
         bool inserted = false;
         for (int i = 0; i < 8; ++i) {
             if (node->children[i] != nullptr && boxTriangleIntersect(node->children[i]->boundingBox, triangle)) {
-                MGlobal::displayInfo(MString("Triangle added to node3 - ") + std::to_wstring(i).c_str());
                 insertTriangle(node->children[i], triangle);
                 inserted = true;
             }
@@ -81,7 +78,6 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
 
         // If the triangle was not added to any of the children, add it to this node
         if (!inserted) {
-            MGlobal::displayInfo("Triangle added to node4");
             node->triangles.push_back(triangle);
         }
     }
@@ -90,7 +86,6 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
 
 void OctreeKernel::splitNode(OctreeNode* node)
 {
-    MGlobal::displayInfo("Splitting node...");
     // Calculate new bounding boxes for child nodes
     MPoint center = node->boundingBox.center();
     MPoint min = node->boundingBox.min();
