@@ -1,7 +1,7 @@
 echo off
 setlocal
 
-SET MAYA_VERSION=2023
+SET MAYA_VERSION=2024
 SET BUILD=mayabuild_%MAYA_VERSION%
 rem SET COMPILER=Visual Studio 15 2017 Win64
 SET COMPILER=Visual Studio 16 2019
@@ -29,7 +29,7 @@ set ADLOC=%MAYALOC%..
 cmake ^
     -DMAYA_VERSION=%MAYA_VERSION% ^
     -DMAYA_INSTALL_BASE_PATH="%ADLOC%" ^
-    -DCMAKE_INSTALL_PREFIX="modules" ^
+    -DCMAKE_INSTALL_PREFIX="..\modules" ^
     -G "%COMPILER%" ..\
 
 cmake --build . --config Release --target Install
