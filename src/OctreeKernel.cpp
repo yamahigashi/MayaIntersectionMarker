@@ -14,7 +14,7 @@
 #include <queue>
 
 
-MStatus OctreeKernel::build(const MObject& meshObject)
+MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 {
     MStatus status;
     // Clear previous data if exists
@@ -22,20 +22,8 @@ MStatus OctreeKernel::build(const MObject& meshObject)
         clear(root);
     }
 
-    // Assume all meshes have the same bounding box for simplicity
-    MFnMesh fnMesh(meshObject);
-    MFnDagNode dagNodeFn(meshObject);
-    MBoundingBox bbox = dagNodeFn.boundingBox(&status);
-    // FIXME: (kFailure) object does not exists
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    MMatrix worldMatrix = dagNodeFn.transformationMatrix();
-    bbox.transformUsing(worldMatrix);
-
     root = new OctreeNode;
     root->boundingBox = bbox;
-
-    MGlobal::displayInfo(MString("BoundingBox min: ") + bbox.width() + ", " + bbox.height() + ", " + bbox.depth());
 
     // Iterate over all polygons in the mesh
     TriangleData triangle;
@@ -60,9 +48,6 @@ MStatus OctreeKernel::build(const MObject& meshObject)
             insertTriangle(root, triangle);
         }
     }
-
-    MGlobal::displayInfo(MString("BoundingBox min: ") + bbox.min().x + ", " + bbox.min().y + ", " + bbox.min().z);
-    MGlobal::displayInfo(MString("BoundingBox max: ") + bbox.max().x + ", " + bbox.max().y + ", " + bbox.max().z);
 
     return MStatus::kSuccess;
 }

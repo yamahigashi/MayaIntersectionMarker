@@ -30,6 +30,7 @@
 #include <maya/MPxNode.h>
 #include <maya/MObject.h>
 #include <maya/MObjectHandle.h>
+#include <maya/MMatrix.h>
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
@@ -54,21 +55,18 @@ MStatus IntersectionMarkerNode::initialize()
 {
     MStatus status;
 
-    MFnTypedAttribute tAttr;
+    MFnTypedAttribute tOputAttr;  // means writable output attribute
+    MFnTypedAttribute tInputAttr;  // meanst read-only input attribute
     MFnNumericAttribute nAttr;
     MFnEnumAttribute eAttr;
 
     // Initialize Mesh A
-    meshA = tAttr.create(MESH_A, MESH_A, MFnData::kMesh);
-    tAttr.setStorable(true);
-    tAttr.setKeyable(false);
+    meshA = tInputAttr.create(MESH_A, MESH_A, MFnData::kMesh, MObject::kNullObj, &status);
     status = addAttribute(meshA);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Mesh B
-    meshB = tAttr.create(MESH_B, MESH_B, MFnData::kMesh);
-    tAttr.setStorable(true);
-    tAttr.setKeyable(false);
+    meshB = tInputAttr.create(MESH_B, MESH_B, MFnData::kMesh, MObject::kNullObj, &status);
     status = addAttribute(meshB);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -97,9 +95,11 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Output Intersected
-    outputIntersected = tAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnData::kIntArray);
-    tAttr.setStorable(false);
-    tAttr.setKeyable(false);
+    outputIntersected = tOputAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnData::kIntArray);
+    tOputAttr.setStorable(false);
+    tOputAttr.setKeyable(false);
+    tOputAttr.setWritable(false);
+    tOputAttr.setReadable(true);
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -139,23 +139,22 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     // Get necessary input data from the dataBlock. This is usually data from
     // the input attributes of the node.
     MGlobal::displayInfo("get input data...");
-    MDataHandle meshAHandle = dataBlock.inputValue(meshA, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    MDataHandle meshBHandle = dataBlock.inputValue(meshB, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    MDataHandle meshAHandle = dataBlock.inputValue(meshA);
+    MDataHandle meshBHandle = dataBlock.inputValue(meshB);
 
     // Get the MObject of the meshes
     MObject meshAObject = meshAHandle.asMesh();
     MObject meshBObject = meshBHandle.asMesh();
+    // -------------------------------------------------------------------------------------------
 
     // Get the dag path of the meshes
     MGlobal::displayInfo("get dag path of the meshes...");
-    MFnMesh fnMeshA(meshAObject);
-    MFnMesh fnMeshB(meshBObject);
-    MDagPath dagPathA;
-    MDagPath dagPathB;
-    fnMeshA.getPath(dagPathA);
-    fnMeshB.getPath(dagPathB);
+    // MFnMesh fnMeshA(meshAObject);
+    // MFnMesh fnMeshB(meshBObject);
+    // MDagPath dagPathA;
+    // MDagPath dagPathB;
+    // fnMeshA.getPath(dagPathA);
+    // fnMeshB.getPath(dagPathB);
 
     // update checksums
     MGlobal::displayInfo("update checksums...");
@@ -178,16 +177,19 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     }
 
     vertexChecksumAHandle.set(newCheckA);
+    vertexChecksumAHandle.setClean();
     vertexChecksumBHandle.set(newCheckB);
+    vertexChecksumBHandle.setClean();
 
     // Build kernel
     MGlobal::displayInfo("build kernel...");
-    MDataHandle kernelTypeHandle = dataBlock.inputValue(kernelType, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    // MDataHandle kernelTypeHandle = dataBlock.inputValue(kernelType, &status);
+    // CHECK_MSTATUS_AND_RETURN_IT(status);
+    // int kernelType = kernelTypeHandle.asShort();
 
-    int kernelType = kernelTypeHandle.asShort();
     std::unique_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
-    status = kernel->build(meshAObject);
+    bbox = getBoundingBox(meshA);
+    status = kernel->build(meshAObject, bbox);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     MIntArray intersectedTriangleIDs = checkIntersections(meshBObject, std::move(kernel));
@@ -201,9 +203,12 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
     // Set the output data handle
     outputHandle.set(outputDataObject);
-    // outputHandle.setClean();
 
     // Mark the output data handle as clean
+    // kernelTypeHandle.setClean();
+    meshAHandle.setClean();
+    meshBHandle.setClean();
+    outputHandle.setClean();
     dataBlock.setClean(plug);
 
     return MStatus::kSuccess;
@@ -391,4 +396,47 @@ std::unique_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel()
     default:
         return nullptr;
     }
+}
+
+
+MStatus IntersectionMarkerNode::getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const
+{
+    MStatus status;
+    MPlug inputMeshPlug(thisMObject(), inputAttr);
+
+    // Get the connected source node of the input plug.
+    MPlugArray connectedPlugs;
+    inputMeshPlug.connectedTo(connectedPlugs, true, false);
+    if (connectedPlugs.length() == 0) {
+        return MStatus::kFailure;  // No source node is connected.
+    }
+    MObject sourceNode = connectedPlugs[0].node();
+
+    // Now sourceNode is the MObject of the connected source node (the mesh node).
+    // To get the MDagPath of the mesh node, use MFnDagNode.
+    MFnDagNode sourceDagNode(sourceNode);
+    MDagPath sourceDagPath;
+    sourceDagNode.getPath(sourceDagPath);
+    outMesh.setObject(sourceDagPath);
+    MBoundingBox bbox = outMesh.boundingBox();
+    MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
+    
+    return MStatus::kSuccess; 
+}
+
+
+// Returns the bounding box of the mesh,
+// due to the fact that the MObject have no DAG information,
+// no dag path can returns no bounding box.
+// we need to get the DAG path of the mesh node first by traversing the input plug.
+MBoundingBox IntersectionMarkerNode::getBoundingBox(const MObject &meshObject) const
+{
+    MFnMesh fnMesh;
+
+    // TODO: check the MSatus
+    getInputDagMesh(meshObject, fnMesh);
+    MBoundingBox bbox = fnMesh.boundingBox();
+    MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
+
+    return bbox;
 }

@@ -3,7 +3,7 @@
 #include <maya/MStatus.h>
 
 
-MStatus KDTreeKernel::build(const MObject& meshObject)
+MStatus KDTreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 {
     // TODO: Implement KDTree building
     return MStatus::kNotImplemented;

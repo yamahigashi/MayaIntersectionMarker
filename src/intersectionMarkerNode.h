@@ -53,6 +53,8 @@ public:
 
     std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
     MIntArray           checkIntersections(MObject meshObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
+    MStatus             getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
+    MBoundingBox        getBoundingBox(const MObject &meshObject) const;
 
 public:
     static MObject      meshA;

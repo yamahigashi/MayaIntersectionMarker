@@ -17,6 +17,6 @@ public:
     virtual ~SpatialDivisionKernel() {};
 
     // Interface methods
-    virtual MStatus build(const MObject& meshObject) = 0;
+    virtual MStatus build(const MObject& meshObject, const MBoundingBox& bbox) = 0;
     virtual std::vector<TriangleData> queryIntersected(const TriangleData& triangle) const = 0;
 };
