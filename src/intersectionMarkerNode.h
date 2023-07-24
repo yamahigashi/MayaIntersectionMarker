@@ -56,11 +56,11 @@ public:
     static MStatus      getCacheKeyFromMesh(MObject &meshObjA, MObject &meshObjB, std::string &key);
 
     std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
-    std::unordered_set<int>                IntersectionMarkerNode::checkIntersections(MObject meshAObject, MObject meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel) const;
+    MStatus             checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset, std::unordered_set<int> &intersectedVertexIds, std::unordered_set<int> &intersectedFaceIds) const;
     MStatus             getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
     MBoundingBox        getBoundingBox(const MObject &meshObject) const;
     MStatus             createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
-    bool                checkIntersectionsDetailed(TriangleData triA, TriangleData triB) const;
+    bool                checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const;
 
 public:
     static MObject      meshA;

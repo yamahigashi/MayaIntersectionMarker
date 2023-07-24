@@ -5,14 +5,21 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+#include "SpatialDivisionKernel.h"
 
 #include <vector>
 #include <unordered_map>
 
 #include <maya/MGlobal.h>
 #include <maya/MItMeshVertex.h>
+#include <maya/MItMeshPolygon.h>
 #include <maya/MIntArray.h>
+#include <maya/MPointArray.h>
+#include <maya/MFloatVector.h>
+#include <maya/MFloatVectorArray.h>
 #include <maya/MVector.h>
+#include <maya/MFnMesh.h>
+#include <maya/MStatus.h>
 
 
 class PolyChecksum
@@ -101,23 +108,92 @@ int getVertexChecksum(MObject polyObject)
 }
 
 
-inline MVector computePlaneNormal(const MPoint& p1, const MPoint& p2, const MPoint& p3) {
+inline MVector computePlaneNormal(const MPoint& p1, const MPoint& p2, const MPoint& p3)
+{
     MVector v1 = p2 - p1;
     MVector v2 = p3 - p1;
     return v1 ^ v2; // cross product gives the normal
 }
 
 
-inline MVector computePlaneOrigin(const MPoint& p1, const MPoint& p2, const MPoint& p3) {
+inline MVector computePlaneOrigin(const MPoint& p1, const MPoint& p2, const MPoint& p3)
+{
     return (p1 + p2 + p3) / 3.0; // average gives the center of the triangle
 }
 
 
-inline bool isEdgeIntersectingPlane(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd) {
+inline bool isEdgeIntersectingPlane(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd)
+{
     // calculate the dot products
     double dotProduct1 = MVector(edgeStart - planeOrigin) * planeNormal;
     double dotProduct2 = MVector(edgeEnd - planeOrigin) * planeNormal;
 
     // check if the edge crosses the plane
     return dotProduct1 * dotProduct2 < 0;
+}
+
+
+inline bool isPointInTriangle(const MPoint& point, const MPoint vertices[])
+{
+    MVector v0 = vertices[2] - vertices[0];
+    MVector v1 = vertices[1] - vertices[0];
+    MVector v2 = point - vertices[0];
+
+    double d00 = v0 * v0;
+    double d01 = v0 * v1;
+    double d11 = v1 * v1;
+    double d20 = v2 * v0;
+    double d21 = v2 * v1;
+
+    double denom = d00 * d11 - d01 * d01;
+
+    double v = (d11 * d20 - d01 * d21) / denom;
+    double w = (d00 * d21 - d01 * d20) / denom;
+    double u = 1.0 - v - w;
+
+    // Check if point is in triangle
+    return (v >= 0) && (w >= 0) && (u >= 0);
+}
+
+
+inline MStatus offsetPolygon(MFnMesh& meshFn, unsigned int polyIndex, float thickness)
+{
+    MStatus status;
+
+    MIntArray vertexIndices;
+    status = meshFn.getPolygonVertices(polyIndex, vertexIndices);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    for (unsigned int i = 0; i < vertexIndices.length(); ++i) {
+        MPoint point;
+        status = meshFn.getPoint(vertexIndices[i], point, MSpace::kObject);
+
+        if (status != MS::kSuccess) {
+            continue;
+        }
+
+        MVector normal;
+        status = meshFn.getVertexNormal(vertexIndices[i], true, normal, MSpace::kObject);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        point += normal * thickness;
+        meshFn.setPoint(vertexIndices[i], point, MSpace::kObject);
+    }
+
+    return MS::kSuccess;
+}
+
+
+bool checkEdgePlaneIntersections(TriangleData triangle, MVector planeNormal, MVector planeOrigin) {
+    for (int k = 0; k < 3; ++k) {
+        MPoint edgeStart = triangle.vertices[k];
+        MPoint edgeEnd = triangle.vertices[(k+1)%3];
+
+        // Check intersection between triangle edge and the plane
+        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
+            return true;
+        }
+    }
+
+    return false;
 }

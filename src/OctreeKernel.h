@@ -46,6 +46,6 @@ private:
 
     void insertTriangle(OctreeNode* node, const TriangleData& triangle);
     void clear(OctreeNode* node);
-    bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleData& triangle) const;
+    bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleData& triangle, bool preciseMode) const;
     void OctreeKernel::splitNode(OctreeNode* node);
 };
