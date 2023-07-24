@@ -319,14 +319,14 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
     
             for (int j = 0; j < numTriangles; ++j) {
                 // Get the vertices of the triangle
-                itPolyB.getTriangle(j, vertices, vertexIndices, MSpace::kWorld);
+                itPolyB.getTriangle(j, vertices, vertexIndices, MSpace::kObject);
     
-                triangle.vertices[0] = vertices[0];
-                triangle.vertices[1] = vertices[1];
-                triangle.vertices[2] = vertices[2];
+                triangle.vertices[0] = vertices[0] * offset;
+                triangle.vertices[1] = vertices[1] * offset;
+                triangle.vertices[2] = vertices[2] * offset;
     
                 // Check intersection between triangle and the octree (kernel)
-                std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
+                std::vector<TriangleData> intersectedTriangles = kernelA->queryIntersected(triangle);
     
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 bool hit = false;
