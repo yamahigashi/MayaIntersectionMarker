@@ -466,47 +466,6 @@ MStatus IntersectionMarkerNode::getValues(MFnDependencyNode &fnNode, const char*
 }
 
 
-MStatus IntersectionMarkerNode::getCacheKey(MObject &node, std::string &key)
-{
-    MStatus status;
-    
-    int vertexChecksumA;
-    int vertexChecksumB;
-
-    MFnDependencyNode fnNode(node);
-
-    IntersectionMarkerNode::getValue(fnNode, VERTEX_CHECKSUM_A, vertexChecksumA);
-    IntersectionMarkerNode::getValue(fnNode, VERTEX_CHECKSUM_B, vertexChecksumB);
-
-    if (vertexChecksumA == -1 || vertexChecksumB == -1)
-    {
-        MString cacheErrorMessage("Cannot cache ^1s because it has incomplete data. Delete it and try again.");
-        cacheErrorMessage.format(cacheErrorMessage, fnNode.name());
-
-        MGlobal::displayWarning(cacheErrorMessage);
-    } else {
-        key = std::to_string(vertexChecksumA) + ":" + 
-              std::to_string(vertexChecksumB);
-    }
-
-    return MStatus::kSuccess;
-}
-
-
-MStatus IntersectionMarkerNode::getCacheKeyFromMesh(MObject &meshAObject, MObject &meshBObject, std::string &key)
-{
-    MStatus status;
-    
-    int vertexChecksumA = (int) getVertexChecksum(meshAObject);
-    int vertexChecksumB = (int) getVertexChecksum(meshBObject);
-
-    key = std::to_string(vertexChecksumA) + ":" + 
-          std::to_string(vertexChecksumB);
-
-    return MStatus::kSuccess; 
-}
-
-
 std::unique_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const
 {
     // Get the value of the 'kernel' attribute

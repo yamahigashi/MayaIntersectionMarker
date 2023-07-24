@@ -198,18 +198,6 @@ bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleD
         return true;
     }
 
-    // // Split each edge of the triangle into 5 parts and check if any of the resulting points are contained in the box
-    // const int steps = 5;
-    // for (int i = 0; i < 3; ++i) {
-    //     MVector edge = triangle.vertices[(i+1)%3] - triangle.vertices[i];
-    //     for (int j = 1; j < steps; ++j) {
-    //         MPoint pointOnEdge = triangle.vertices[i] + edge * (double(j) / steps);
-    //         if (box.contains(pointOnEdge)) {
-    //             return true;
-    //         }
-    //     }
-    // }
-    // 
     // Note: This function might fail to detect intersections where the triangle
     // penetrates the box but none of the triangle's vertices are contained within the box.
     return false;
