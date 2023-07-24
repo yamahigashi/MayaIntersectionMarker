@@ -8,6 +8,7 @@
 #include "KDTreeKernel.h"
 #include "OctreeKernel.h"
 
+#include <omp.h>
 #include <string>
 #include <unordered_set>
 
@@ -299,48 +300,54 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
     // MGlobal::displayInfo("checkIntersections...");
 
     // Iterate through the polygons in meshB
-    MItMeshPolygon itPolyA(meshAObject);
     MItMeshPolygon itPolyB(meshBObject);
-    MPointArray vertices;
-    MIntArray vertexIndices;
     int numPolygons = itPolyB.count();
-    for (int i = 0; i < numPolygons; i++) {
-        int prevIndex;
-        status = itPolyB.setIndex(i, prevIndex);
-        CHECK_MSTATUS_AND_RETURN_IT(status);
+    #pragma omp parallel
+    {
+        std::unordered_set<int> intersectedFaceIdsLocal;
+        #pragma omp for
+        for (int i = 0; i < numPolygons; i++) {
+            MPointArray vertices;
+            MIntArray vertexIndices;
 
-        int numTriangles;
-        itPolyB.numTriangles(numTriangles);
-
-        for (int j = 0; j < numTriangles; ++j) {
-            // Get the vertices of the triangle
-            itPolyB.getTriangle(j, vertices, vertexIndices, MSpace::kWorld);
-            // MGlobal::displayInfo(MString("check triangle: ") + std::to_wstring(i).c_str() + " " + std::to_wstring(j).c_str());
-
-            triangle.vertices[0] = vertices[0];
-            triangle.vertices[1] = vertices[1];
-            triangle.vertices[2] = vertices[2];
-
-            // Check intersection between triangle and the octree (kernel)
-            std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
-
-            // If there is any intersection, store the intersection data into intersectedVertexIds
-            bool hit = false;
-            if (!intersectedTriangles.empty()) {
-                // MGlobal::displayInfo(MString("need to check intersection more closely...") + std::to_wstring(intersectedTriangles.size()).c_str());
-                TriangleData intersectedTriangle;
-                for(int k = 0; k < intersectedTriangles.size(); ++k) {
-                    intersectedTriangle = intersectedTriangles[k];
-                    hit = checkIntersectionsDetailed(intersectedTriangle, triangle);
-                    if (hit) {
-                        intersectedFaceIds.insert(intersectedTriangle.faceIndex);
-                        // break;  // To gather all intersected triangles, don't break here
+            int prevIndex;
+            status = itPolyB.setIndex(i, prevIndex);
+            // CHECK_MSTATUS_AND_RETURN_IT(status);  // inside OpenMP, we cannot use return statement
+    
+            int numTriangles;
+            itPolyB.numTriangles(numTriangles);
+    
+            for (int j = 0; j < numTriangles; ++j) {
+                // Get the vertices of the triangle
+                itPolyB.getTriangle(j, vertices, vertexIndices, MSpace::kWorld);
+    
+                triangle.vertices[0] = vertices[0];
+                triangle.vertices[1] = vertices[1];
+                triangle.vertices[2] = vertices[2];
+    
+                // Check intersection between triangle and the octree (kernel)
+                std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
+    
+                // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
+                bool hit = false;
+                if (!intersectedTriangles.empty()) {
+                    TriangleData intersectedTriangle;
+                    for(int k = 0; k < intersectedTriangles.size(); ++k) {
+                        intersectedTriangle = intersectedTriangles[k];
+                        hit = checkIntersectionsDetailed(intersectedTriangle, triangle);
+                        if (hit) {
+                            intersectedFaceIdsLocal.insert(intersectedTriangle.faceIndex);
+                        }
                     }
                 }
             }
         }
+        #pragma omp critical
+        intersectedFaceIds.insert(intersectedFaceIdsLocal.begin(), intersectedFaceIdsLocal.end());
     }
 
+    MItMeshPolygon itPolyA(meshAObject);
+    MIntArray vertexIndices;
     for (const auto &faceId : intersectedFaceIds) {
         int prevIndex;
         status = itPolyA.setIndex(faceId, prevIndex);
