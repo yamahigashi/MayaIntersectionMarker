@@ -368,20 +368,34 @@ bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA,
     MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
     MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
 
-    bool resA = checkEdgePlaneIntersections(triB, planeNormal, planeOrigin);
-    if (!resA) {
-        return false;
+    for (int i = 0; i < 3; ++i) {
+        MPoint edgeStart = triB.vertices[i];
+        MPoint edgeEnd = triB.vertices[(i+1)%3];
+
+        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
+            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
+            if (isPointInsideTriangle(intersection, triA)) {
+                return true;
+            }
+        }
     }
 
     planeNormal = computePlaneNormal(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
     planeOrigin = computePlaneOrigin(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
 
-    bool resB = checkEdgePlaneIntersections(triA, planeNormal, planeOrigin);
-    if (!resB) {
-        return false;
+    for (int i = 0; i < 3; ++i) {
+        MPoint edgeStart = triA.vertices[i];
+        MPoint edgeEnd = triA.vertices[(i+1)%3];
+
+        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
+            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
+            if (isPointInsideTriangle(intersection, triB)) {
+                return true;
+            }
+        }
     }
 
-    return true;
+    return false;
 }
 
 

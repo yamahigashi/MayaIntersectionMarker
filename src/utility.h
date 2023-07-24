@@ -184,16 +184,27 @@ inline MStatus offsetPolygon(MFnMesh& meshFn, unsigned int polyIndex, float thic
 }
 
 
-bool checkEdgePlaneIntersections(TriangleData triangle, MVector planeNormal, MVector planeOrigin) {
-    for (int k = 0; k < 3; ++k) {
-        MPoint edgeStart = triangle.vertices[k];
-        MPoint edgeEnd = triangle.vertices[(k+1)%3];
+MPoint computeEdgePlaneIntersection(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd) {
+    MVector edgeDirection = edgeEnd - edgeStart;
+    double t = ((planeOrigin - edgeStart) * planeNormal) / (edgeDirection * planeNormal);
+    return edgeStart + t * edgeDirection;
+}
 
-        // Check intersection between triangle edge and the plane
-        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-            return true;
-        }
-    }
 
-    return false;
+bool isPointInsideTriangle(const MPoint& point, const TriangleData& triangle) {
+    MVector v0 = triangle.vertices[2] - triangle.vertices[0];
+    MVector v1 = triangle.vertices[1] - triangle.vertices[0];
+    MVector v2 = point - triangle.vertices[0];
+
+    double dot00 = v0 * v0;
+    double dot01 = v0 * v1;
+    double dot02 = v0 * v2;
+    double dot11 = v1 * v1;
+    double dot12 = v1 * v2;
+
+    double invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
+    double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    return (u >= 0) && (v >= 0) && (u + v < 1);
 }
