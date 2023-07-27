@@ -31,10 +31,13 @@
 #include <maya/MGlobal.h>
 #include <maya/MPlug.h>
 #include <maya/MPxNode.h>
+#include <maya/MPxLocatorNode.h>
 #include <maya/MObject.h>
 #include <maya/MMatrix.h>
 #include <maya/MVector.h>
 #include <maya/MDGModifier.h>
+#include <maya/MEvaluationNode.h>
+
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
@@ -46,7 +49,6 @@ MObject IntersectionMarkerNode::vertexChecksumB;
 MObject IntersectionMarkerNode::kernelType;
 
 MObject IntersectionMarkerNode::outputIntersected;
-MObject IntersectionMarkerNode::outMesh;
 
 IntersectionMarkerNode::IntersectionMarkerNode() {}
 IntersectionMarkerNode::~IntersectionMarkerNode() {}
@@ -125,15 +127,6 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    // Initialize Output Mesh
-    outMesh = tOutputAttr.create(OUT_MESH, OUT_MESH, MFnData::kMesh);
-    tOutputAttr.setStorable(false);
-    tOutputAttr.setKeyable(false);
-    tOutputAttr.setWritable(false);
-    tOutputAttr.setReadable(true);
-    status = addAttribute(outMesh);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
     // Add dependencies
     status = attributeAffects(meshA, vertexChecksumA);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -155,19 +148,29 @@ MStatus IntersectionMarkerNode::initialize()
     status = attributeAffects(vertexChecksumB, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    status = attributeAffects(offsetMatrix, outMesh);
-    status = attributeAffects(meshA, outMesh);
-    status = attributeAffects(meshB, outMesh);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = attributeAffects(kernelType, outMesh);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    status = attributeAffects(vertexChecksumA, outMesh);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    status = attributeAffects(vertexChecksumB, outMesh);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
     return MS::kSuccess;
+}
+
+
+MStatus IntersectionMarkerNode::postEvaluation( const  MDGContext& context, const MEvaluationNode& evaluationNode, PostEvaluationType evalType )
+{
+    MGlobal::displayInfo("Post Evaluation");
+    if(!context.isNormal()) {
+        return MStatus::kFailure;
+    }
+
+    MStatus status;
+    if(evalType == kLeaveDirty)
+    {
+    }
+    else if ( (evaluationNode.dirtyPlugExists(meshA, &status) && status ) || 
+              ( evaluationNode.dirtyPlugExists(meshB, &status) && status ) )
+    {
+        MDataBlock block = forceCache();
+        MDataHandle meshAHandle = block.inputValue(meshA, &status);
+        MDataHandle meshBHandle = block.inputValue(meshB, &status);
+    }
+   return MStatus::kSuccess;
 }
 
 
@@ -181,8 +184,8 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
     // Check if the plug parameter corresponds to the attribute that this node
     // is supposed to handle
-    if (plug != outMesh) {
-        return MStatus::kUnknownParameter;
+    if (plug != outputIntersected) {
+        // return MStatus::kUnknownParameter;
     }
 
     // Get necessary input data from the dataBlock. This is usually data from
@@ -226,63 +229,14 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     status = kernel->build(meshAObject, bbox);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    std::unordered_set<int> intersectedVertexIds;
-    std::unordered_set<int> intersectedFaceIds;
-    status = checkIntersections(meshAObject, meshBObject, std::move(kernel), offset, intersectedVertexIds, intersectedFaceIds);
+    status = checkIntersections(meshAObject, meshBObject, std::move(kernel), offset);
 
     // Get output data handle
     MDataHandle outputIntersectedHandle = dataBlock.outputValue(outputIntersected, &status);
-    outputIntersectedHandle.set(intersectedFaceIds.size() > 0);
+    outputIntersectedHandle.set((intersectedFaceIdsA.size() > 0) || (intersectedFaceIdsB.size() > 0));
     outputIntersectedHandle.setClean();
 
     // -------------------------------------------------------------------------------------------
-    MDataHandle outputMeshHandle = dataBlock.outputValue(outMesh, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    outputMeshHandle.set(meshAObject);
-    MFnMesh outputMeshFn(outputMeshHandle.asMesh());
-
-    // -------------------------------------------------------------------------------------------
-    // Output mesh
-    // extrude the intersected faces
-    MIntArray faceList;
-    for (const auto &id : intersectedFaceIds) {
-        offsetPolygon(outputMeshFn, id, 0.01f);
-    }
-
-    // MGlobal::displayInfo(MString("Size of intersectedFaceIds is ") + std::to_wstring(intersectedFaceIds.size()).c_str());
-    // MGlobal::displayInfo(MString("Size of intersectedVertexIds is ") + std::to_wstring(intersectedVertexIds.size()).c_str());
-    // for (const auto &vertexId : intersectedVertexIds) {
-    //     MGlobal::displayInfo(MString("intersected vertex: ") + std::to_wstring(vertexId).c_str());
-    // }
-
-    // Create a set of all polygon indices
-    int numVertices = outputMeshFn.numVertices();
-    std::unordered_set<int> vertexIds;
-    for (int i = 0; i < numVertices; ++i) {
-        vertexIds.insert(i);
-    }
-
-    for (const auto &id : intersectedVertexIds) {
-        vertexIds.erase(id);
-    }
-
-    MPoint center;  // center of the intersected vertices
-    MPoint point;
-    for (const auto &id : intersectedVertexIds) {
-        outputMeshFn.getPoint(id, point);
-        center += point;
-    }
-    center = center / static_cast<double>(intersectedVertexIds.size());
-
-    // For each non-intersected polygon
-    for (const auto &index : vertexIds) {
-        outputMeshFn.setPoint(index, center);
-    }
-    // -------------------------------------------------------------------------------------------
-
-    // Mark the output data handle as clean
-    outputMeshHandle.setClean();
 
     meshAHandle.setClean();
     meshBHandle.setClean();
@@ -293,25 +247,28 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 }
 
 
-MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset, std::unordered_set<int> &intersectedVertexIds, std::unordered_set<int> &intersectedFaceIds) const
+MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset)
 {
     MStatus status;
     TriangleData triangle;
     // MGlobal::displayInfo("checkIntersections...");
+    intersectedFaceIdsA.clear();
+    intersectedFaceIdsB.clear();
 
     // Iterate through the polygons in meshB
     MItMeshPolygon itPolyB(meshBObject);
     int numPolygons = itPolyB.count();
-    #pragma omp parallel
+    // #pragma omp parallel
     {
-        std::unordered_set<int> intersectedFaceIdsLocal;
-        #pragma omp for
-        for (int i = 0; i < numPolygons; i++) {
+        std::unordered_set<int> intersectedFaceIdsLocalA;
+        std::unordered_set<int> intersectedFaceIdsLocalB;
+        // #pragma omp for
+        for (int faceBIndex = 0; faceBIndex < numPolygons; faceBIndex++) {
             MPointArray vertices;
             MIntArray vertexIndices;
 
             int prevIndex;
-            status = itPolyB.setIndex(i, prevIndex);
+            status = itPolyB.setIndex(faceBIndex, prevIndex);
             // CHECK_MSTATUS_AND_RETURN_IT(status);  // inside OpenMP, we cannot use return statement
     
             int numTriangles;
@@ -326,7 +283,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
                 triangle.vertices[2] = vertices[2] * offset;
     
                 // Check intersection between triangle and the octree (kernel)
-                std::vector<TriangleData> intersectedTriangles = kernelA->queryIntersected(triangle);
+                std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
     
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 bool hit = false;
@@ -336,27 +293,18 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
                         intersectedTriangle = intersectedTriangles[k];
                         hit = checkIntersectionsDetailed(intersectedTriangle, triangle);
                         if (hit) {
-                            intersectedFaceIdsLocal.insert(intersectedTriangle.faceIndex);
+                            intersectedFaceIdsLocalA.insert(intersectedTriangle.faceIndex);
+                            intersectedFaceIdsLocalB.insert(faceBIndex);
                         }
                     }
                 }
             }
         }
-        #pragma omp critical
-        intersectedFaceIds.insert(intersectedFaceIdsLocal.begin(), intersectedFaceIdsLocal.end());
+        // #pragma omp critical
+        intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
+        intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
     }
 
-    MItMeshPolygon itPolyA(meshAObject);
-    MIntArray vertexIndices;
-    for (const auto &faceId : intersectedFaceIds) {
-        int prevIndex;
-        status = itPolyA.setIndex(faceId, prevIndex);
-        CHECK_MSTATUS_AND_RETURN_IT(status);
-        itPolyA.getVertices(vertexIndices);
-        for (unsigned int i = 0; i < vertexIndices.length(); ++i) {
-            intersectedVertexIds.insert(vertexIndices[i]);
-        }
-    }
     return MStatus::kSuccess;
 }
 
@@ -396,87 +344,6 @@ bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA,
     }
 
     return false;
-}
-
-
-MStatus IntersectionMarkerNode::setValue(MFnDependencyNode &fnNode, const char* attributeName, int &value)
-{
-    MStatus status;
-
-    MPlug plug = fnNode.findPlug(attributeName, false, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = plug.setValue(value);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    return MStatus::kSuccess;
-}
-
-
-MStatus IntersectionMarkerNode::getValue(MFnDependencyNode &fnNode, const char* attributeName, int &value)
-{
-    MStatus status;
-
-    MPlug plug = fnNode.findPlug(attributeName, true, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = plug.getValue(value);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    return MStatus::kSuccess;
-}
-
-
-MStatus IntersectionMarkerNode::setValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values)
-{
-    MStatus status;
-
-    MPlug plug = fnNode.findPlug(attributeName, false, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    MIntArray valueArray;
-
-    for (int &v : values)
-    { 
-        valueArray.append(v);
-    }
-
-    MFnIntArrayData valueArrayData;
-
-    MObject data = valueArrayData.create(valueArray, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = plug.setMObject(data);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    return MStatus::kSuccess;
-}
-
-
-MStatus IntersectionMarkerNode::getValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values)
-{
-    MStatus status;
-
-    MPlug plug = fnNode.findPlug(attributeName, true, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    MObject data = plug.asMObject();
-
-    MFnIntArrayData valueArrayData(data, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    MIntArray valueArray = valueArrayData.array(&status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    uint numberOfValues = valueArray.length();
-    values.resize((int) numberOfValues);
-
-    for (uint i = 0; i < numberOfValues; i++)
-    {
-        values[i] = valueArray[i];
-    }
-
-    return MStatus::kSuccess;
 }
 
 

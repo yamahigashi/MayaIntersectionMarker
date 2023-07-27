@@ -14,6 +14,7 @@
 #include <maya/MDataHandle.h>
 #include <maya/MFnDependencyNode.h>
 #include <maya/MPxNode.h>
+#include <maya/MPxLocatorNode.h>
 #include <maya/MObject.h>
 #include <maya/MPlug.h>
 #include <maya/MString.h>
@@ -32,35 +33,33 @@
 #define OUT_MESH           "outMesh"
 
 
-class IntersectionMarkerNode : MPxNode
+class IntersectionMarkerNode : public MPxLocatorNode
 {
 public:
                         IntersectionMarkerNode();
-    virtual            ~IntersectionMarkerNode();
+                        ~IntersectionMarkerNode() override;
 
     static  void*       creator();
     static  MStatus     initialize();
-    
-    virtual MStatus     compute(const MPlug &plug, MDataBlock &dataBlock);
 
-    static MStatus      setValue(MFnDependencyNode &fnNode, const char* attributeName, int &value);
-    static MStatus      getValue(MFnDependencyNode &fnNode, const char* attributeName, int &value);
+            MStatus     postEvaluation(const  MDGContext& context, const MEvaluationNode& evaluationNode, PostEvaluationType evalType) override;
+            MStatus     compute(const MPlug &plug, MDataBlock &dataBlock);
 
-    static MStatus      setValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values);
-    static MStatus      getValues(MFnDependencyNode &fnNode, const char* attributeName, std::vector<int> &values);
-    
-    static MStatus      onInitializePlugin();
-    static MStatus      onUninitializePlugin();
+    // static MStatus      onInitializePlugin();
+    // static MStatus      onUninitializePlugin();
 
     static MStatus      getCacheKey(MObject &node, std::string &key);
     static MStatus      getCacheKeyFromMesh(MObject &meshObjA, MObject &meshObjB, std::string &key);
 
-    std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
-    MStatus             checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset, std::unordered_set<int> &intersectedVertexIds, std::unordered_set<int> &intersectedFaceIds) const;
-    MStatus             getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
-    MBoundingBox        getBoundingBox(const MObject &meshObject) const;
-    MStatus             createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
-    bool                checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const;
+std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
+            MStatus     checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset);
+            MStatus     getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
+      MBoundingBox      getBoundingBox(const MObject &meshObject) const;
+           MStatus      createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
+              bool      checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const;
+
+             MPlug      meshAPlug() const { return MPlug(thisMObject(), meshA); }
+             MPlug      meshBPlug() const { return MPlug(thisMObject(), meshB); }
 
 public:
     static MObject      meshA;
@@ -73,9 +72,13 @@ public:
     static MObject      kernelType;
 
     static MObject      outputIntersected;
-    static MObject      outMesh;
     
     static MString      NODE_NAME;
     static MTypeId      NODE_ID;
 
+    static MString      drawDbClassification;
+    static MString      drawRegistrantId;
+
+    std::unordered_set<int> intersectedFaceIdsA;
+    std::unordered_set<int> intersectedFaceIdsB;
 };
