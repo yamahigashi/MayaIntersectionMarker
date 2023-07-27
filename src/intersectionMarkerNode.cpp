@@ -250,59 +250,81 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset)
 {
     MStatus status;
-    TriangleData triangle;
     // MGlobal::displayInfo("checkIntersections...");
     intersectedFaceIdsA.clear();
     intersectedFaceIdsB.clear();
 
     // Iterate through the polygons in meshB
-    MItMeshPolygon itPolyB(meshBObject);
-    int numPolygons = itPolyB.count();
-    // #pragma omp parallel
+    MFnMesh meshBFn(meshBObject);
+    int numPolygons = meshBFn.numPolygons();
+
+    MIntArray triangleCounts;   // number of triangles in each face
+    MIntArray triangleVertices; // The triangle vertex Ids for each triangle
+    MIntArray triangleIndices;  // The index array for each triangle in face vertex space
+    MPointArray vertexPositions;
+
+    meshBFn.getTriangles(triangleCounts, triangleVertices);
+    meshBFn.getTriangleOffsets(triangleCounts, triangleIndices);
+    meshBFn.getPoints(vertexPositions, MSpace::kObject);
+
+    // Calculate the offset into the triangleVertices array for each polygon
+    MIntArray polygonTriangleOffsets(numPolygons, 0);
+    for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
+        polygonTriangleOffsets[polygonIndex] = polygonTriangleOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1] * 3;
+    }
+
+    // Similarly, calculate the offset into the triangleIndices array for each polygon
+    MIntArray polygonIndexOffsets(numPolygons, 0);
+    for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
+        polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
+    }
+
+    #pragma omp parallel
     {
         std::unordered_set<int> intersectedFaceIdsLocalA;
         std::unordered_set<int> intersectedFaceIdsLocalB;
-        // #pragma omp for
-        for (int faceBIndex = 0; faceBIndex < numPolygons; faceBIndex++) {
-            MPointArray vertices;
-            MIntArray vertexIndices;
 
-            int prevIndex;
-            status = itPolyB.setIndex(faceBIndex, prevIndex);
-            // CHECK_MSTATUS_AND_RETURN_IT(status);  // inside OpenMP, we cannot use return statement
-    
-            int numTriangles;
-            itPolyB.numTriangles(numTriangles);
-    
-            for (int j = 0; j < numTriangles; ++j) {
-                // Get the vertices of the triangle
-                itPolyB.getTriangle(j, vertices, vertexIndices, MSpace::kObject);
-    
-                triangle.vertices[0] = vertices[0] * offset;
-                triangle.vertices[1] = vertices[1] * offset;
-                triangle.vertices[2] = vertices[2] * offset;
-    
+        #pragma omp for
+        for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
+
+            TriangleData triangle;
+            int numTrianglesInPolygon = triangleCounts[polygonIndex];
+            int triangleVerticesOffset = polygonTriangleOffsets[polygonIndex];
+            int triangleIndicesOffset = polygonIndexOffsets[polygonIndex];
+
+            for (int triangleIndex = 0; triangleIndex < numTrianglesInPolygon; triangleIndex++) {
+                // Get the vertex positions of each triangle
+                for (int vertexIndex = 0; vertexIndex < 3; vertexIndex++) {
+                    int vertexId = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + vertexIndex];
+                    triangle.vertices[vertexIndex] = vertexPositions[vertexId] * offset;
+                }
+
                 // Check intersection between triangle and the octree (kernel)
                 std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
-    
+                // 
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 bool hit = false;
                 if (!intersectedTriangles.empty()) {
-                    TriangleData intersectedTriangle;
                     for(int k = 0; k < intersectedTriangles.size(); ++k) {
-                        intersectedTriangle = intersectedTriangles[k];
-                        hit = checkIntersectionsDetailed(intersectedTriangle, triangle);
+                        hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
                         if (hit) {
-                            intersectedFaceIdsLocalA.insert(intersectedTriangle.faceIndex);
-                            intersectedFaceIdsLocalB.insert(faceBIndex);
+                            int a = intersectedTriangles[k].faceIndex;
+                            int b = polygonIndex;
+
+                            // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
+                            intersectedFaceIdsLocalA.insert(a);
+                            intersectedFaceIdsLocalB.insert(b);
                         }
                     }
                 }
             }
         }
-        // #pragma omp critical
-        intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
-        intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
+
+        #pragma omp critical
+        {
+            intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
+            intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
+        }
     }
 
     return MStatus::kSuccess;

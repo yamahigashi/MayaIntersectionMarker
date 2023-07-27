@@ -12,7 +12,7 @@
 class IntersectionMarkerData : public MUserData
 {
 public:
-    IntersectionMarkerData() : MUserData(false) {} // Don't delete after draw
+    IntersectionMarkerData() : MUserData() {} // Don't delete after draw
     ~IntersectionMarkerData() {}
 
     struct FaceData {
