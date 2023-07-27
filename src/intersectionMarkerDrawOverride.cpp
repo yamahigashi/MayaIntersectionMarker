@@ -138,17 +138,23 @@ MStatus IntersectionMarkerDrawOverride::addIntersectedVertices(
         CHECK_MSTATUS_AND_RETURN_IT(status);
         IntersectionMarkerData::FaceData faceData;
 
+        MVector normal;
+        meshFn.getPolygonNormal(faceId, normal);
         int numTriangles;
         itPoly.numTriangles(numTriangles);
         for (int j = 0; j < numTriangles; ++j) {
             itPoly.getTriangle(j, vertices, vertexIndices, MSpace::kObject);
-            for (int k = 0; k < vertices.length(); ++k) {
+            for (unsigned int k = 0; k < vertices.length(); ++k) {
+                // To avoid z-fighting, move the vertex a little bit along the normal
+                vertices[k] += normal * 0.001;
                 faceData.vertices.append(vertices[k]);
+                faceData.edges.append(vertices[k]);
+                faceData.normals.append(normal);
             }
+            faceData.edges.append(vertices[0]);  // close the loop of the triangle
         }
 
         // Get normal
-        meshFn.getPolygonNormal(faceId, faceData.normal);
         data->faces.push_back(faceData);
     }
 
@@ -171,19 +177,18 @@ void IntersectionMarkerDrawOverride::addUIDrawables(
 
     drawManager.beginDrawable();
     {
-        drawManager.setColor(MColor(1.0f, 0.0f, 0.0f));
-        drawManager.setLineWidth(2.0f);
+        // drawManager.setLineWidth(2.0f);
         drawManager.setLineStyle(MUIDrawManager::kSolid);
-        double xpos = rand()/RAND_MAX*10.0;
-        MPoint position(xpos, 0.0, 0.5 );
-        MVector normal(0.0, 0.0, 1.0);
-        MVector rectUp(0.0, 1.0, 0.0);
-        drawManager.rect(position, rectUp, normal, 5 * 1, 5, false );
 
         // for each face
         for (const IntersectionMarkerData::FaceData& face : markerData->faces) {
             // draw the face
+            drawManager.setColor(MColor(1.0f, 0.0f, 0.0f));
             drawManager.mesh(MHWRender::MUIDrawManager::kTriangles, face.vertices);
+
+            // draw the edges
+            drawManager.setColor(MColor(0.0f, 0.015f, 0.3764f));
+            drawManager.mesh(MHWRender::MUIDrawManager::kLines, face.edges);
         }
     }
     drawManager.endDrawable();

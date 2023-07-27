@@ -7,6 +7,7 @@
 #include <vector>
 #include <maya/MUserData.h>
 #include <maya/MPointArray.h>
+#include <maya/MVectorArray.h>
 
 class IntersectionMarkerData : public MUserData
 {
@@ -16,7 +17,8 @@ public:
 
     struct FaceData {
         MPointArray vertices;
-        MVector normal;
+        MPointArray edges;
+        MVectorArray normals;
     };
 
     std::vector<FaceData> faces;
