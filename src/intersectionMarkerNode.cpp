@@ -6,6 +6,7 @@
 #include "utility.h"
 #include "intersectionMarkerNode.h"
 #include "KDTreeKernel.h"
+#include "EmbreeKernel.h"
 #include "OctreeKernel.h"
 
 #include <omp.h>
@@ -115,6 +116,7 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
     eAttr.addField("Octree", 0);
     eAttr.addField("KDTree", 1);
+    eAttr.addField("Embree", 2);
     status = addAttribute(kernelType);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -382,6 +384,8 @@ std::unique_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel()
         return std::make_unique<OctreeKernel>();
     case 1: // KDTree
         return std::make_unique<KDTreeKernel>();
+    case 2: // Embree
+        return std::make_unique<EmbreeKernel>();
     default:
         return nullptr;
     }
