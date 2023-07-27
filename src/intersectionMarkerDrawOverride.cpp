@@ -19,6 +19,15 @@
 #include <maya/MEventMessage.h>
 
 
+#define CHECK_MSTATUS_AND_RETURN_DATA(errorMessage) \
+    do { \
+        if (!status) { \
+            MGlobal::displayInfo(errorMessage); \
+            return data; \
+        } \
+    } while (0)
+
+
 IntersectionMarkerDrawOverride::IntersectionMarkerDrawOverride(const MObject& obj)
     : MHWRender::MPxDrawOverride(obj, NULL, /* isAlwaysDirty=*/false)
     , fNode(obj)
@@ -76,19 +85,11 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     data->faces.clear();
 
     MObject drawNode = objPath.node(&status);
-    if (!status) 
-    {
-        MGlobal::displayInfo("prepareForDraw: drawNode is null");
-        return data;
-    }
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: objPath.node is null");
 
     // Get the IntersectionMarkerNode
     MFnDependencyNode depNodeFn(drawNode, &status);
-    if (!status) 
-    {
-        MGlobal::displayInfo("prepareForDraw: depNodeFn is null");
-        return data;
-    }
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: depNodeFn is null");
 
     // Get the node and mesh data
     const IntersectionMarkerNode* node = (const IntersectionMarkerNode*)depNodeFn.userNode();
@@ -100,16 +101,10 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     MFnMesh meshAFn;
     MFnMesh meshBFn;
     status = node->getInputDagMesh(node->meshA, meshAFn);
-    if (!status) {
-        MGlobal::displayInfo("prepareForDraw: meshAFn is null");
-        return data;
-    }
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: meshAFn is null");
 
     status = node->getInputDagMesh(node->meshB, meshBFn);
-    if (!status) {
-        MGlobal::displayInfo("prepareForDraw: meshBFn is null");
-        return data;
-    }
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: meshBFn is null");
 
     addIntersectedVertices(meshAFn, data, node->intersectedFaceIdsA);
     addIntersectedVertices(meshBFn, data, node->intersectedFaceIdsB);
