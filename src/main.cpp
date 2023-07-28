@@ -39,7 +39,7 @@ MString IntersectionMarkerNode::drawRegistrantId     = "intersectionMarkerDrawOv
 
 #define DEREGISTER_COMMAND(CMD) \
     do { \
-        MStatus = fnPlugin.deregisterCommand(CMD::COMMAND_NAME) \
+        MStatus status = fnPlugin.deregisterCommand(CMD::COMMAND_NAME); \
         CHECK_MSTATUS_AND_RETURN_IT(status); \
     } while (0)
 
@@ -117,9 +117,9 @@ MStatus initializePlugin(MObject obj)
 {
     MStatus status;
     MFnPlugin fnPlugin(obj, kAUTHOR, kVERSION, kREQUIRED_API_VERSION);
-    REGISTER_COMMAND(IntersectionMarkerCommand);
 	  REGISTER_LOCATOR_NODE(IntersectionMarkerNode);
     REGISTER_DRAW_OVERRIDE(IntersectionMarkerNode, IntersectionMarkerDrawOverride);
+    REGISTER_COMMAND(IntersectionMarkerCommand);
 
     return MS::kSuccess;
 }
@@ -129,6 +129,7 @@ MStatus uninitializePlugin(MObject obj)
 {
     MStatus status;
     MFnPlugin fnPlugin(obj, kAUTHOR, kVERSION, kREQUIRED_API_VERSION);
+    DEREGISTER_COMMAND(IntersectionMarkerCommand);
     DEREGISTER_DRAW_OVERRIDE(IntersectionMarkerNode, IntersectionMarkerDrawOverride);
 	  DEREGISTER_NODE(IntersectionMarkerNode);
 

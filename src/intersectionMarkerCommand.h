@@ -21,8 +21,9 @@ public:
 
     virtual MStatus     doIt(const MArgList& argList);
     virtual MStatus     redoIt();
+    virtual MStatus     undoIt();
 
-    virtual bool        isUndoable() const { return true; }
+    virtual bool        isUndoable() const;
     virtual bool        hasSyntax()  const { return true; }
     
 public:
@@ -31,4 +32,6 @@ public:
 private:    
     MDagPath            meshA;
     MDagPath            meshB;
+    MObject             markerNode;
+    MObject             xformNode;
 };
