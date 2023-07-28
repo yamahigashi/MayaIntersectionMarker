@@ -73,4 +73,3 @@ private:
             IntersectionMarkerData* data,
             const std::unordered_set<int> &intersectedFaceIds);
 };
-

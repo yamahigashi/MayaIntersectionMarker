@@ -105,15 +105,15 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
     // Build BVH
     RTCBuildArguments arguments = rtcDefaultBuildArguments();
     arguments.byteSize               = sizeof(arguments);
-    arguments.buildFlags             = RTC_BUILD_FLAG_NONE;
+    // arguments.buildFlags             = RTC_BUILD_FLAG_NONE;
     arguments.buildQuality           = RTC_BUILD_QUALITY_MEDIUM;
-    arguments.maxBranchingFactor     = 2;
-    arguments.maxDepth               = 1024;
-    arguments.sahBlockSize           = 1;
-    arguments.minLeafSize            = 1;
-    arguments.maxLeafSize            = 1;
-    arguments.traversalCost          = 1.0f;
-    arguments.intersectionCost       = 10.0f;
+    // arguments.maxBranchingFactor     = 2;
+    // arguments.maxDepth               = 1024;
+    // arguments.sahBlockSize           = 1;
+    // arguments.minLeafSize            = 1;
+    // arguments.maxLeafSize            = 1;
+    // arguments.traversalCost          = 1.0f;
+    // arguments.intersectionCost       = 10.0f;
     arguments.bvh                    = rtcBVH;
     arguments.primitives             = primitives.data();
     arguments.primitiveCount         = primitives.size();
@@ -122,8 +122,8 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
     // arguments.setNodeChildren        = InnerNode::setChildren;
     // arguments.setNodeBounds          = InnerNode::setBounds;
     // arguments.createLeaf             = AMRLeafNode::create;
-    arguments.splitPrimitive         = nullptr;
-    arguments.buildProgress          = nullptr;
+    // arguments.splitPrimitive         = nullptr;
+    // arguments.buildProgress          = nullptr;
     // arguments.userPtr                = userData.data();
 
     rtcRoot = (Node *)rtcBuildBVH(&arguments);

@@ -1,14 +1,11 @@
 #pragma once
 
+#include "utility.h"
+
 #include <vector>
 #include <maya/MDagPath.h>
 #include <maya/MPoint.h>
 #include <maya/MStatus.h>
-
-struct TriangleData {
-    int faceIndex;
-    MPoint vertices[3];
-};
 
 
 class SpatialDivisionKernel

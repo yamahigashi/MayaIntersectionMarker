@@ -25,9 +25,6 @@
 #define OFFSET_MATRIX      "offsetMatrix"
 #define REST_INTERSECTED   "restIntersected"
 
-#define VERTEX_CHECKSUM_A  "vertexChecksumA"
-#define VERTEX_CHECKSUM_B  "vertexChecksumB"
-
 #define KERNEL             "kernel"
 #define OUTPUT_INTERSECTED "outputIntersected"
 #define OUT_MESH           "outMesh"

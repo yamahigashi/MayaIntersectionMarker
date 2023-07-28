@@ -4,10 +4,12 @@
 */
 
 #include "utility.h"
+
 #include "intersectionMarkerNode.h"
-#include "KDTreeKernel.h"
-#include "EmbreeKernel.h"
-#include "OctreeKernel.h"
+
+#include "kernel/KDTreeKernel.h"
+#include "kernel/EmbreeKernel.h"
+#include "kernel/OctreeKernel.h"
 
 #include <omp.h>
 #include <string>
@@ -20,9 +22,6 @@
 #include <maya/MItMeshPolygon.h>
 #include <maya/MPointArray.h>
 #include <maya/MFnIntArrayData.h>
-// #include <maya/MFnArrayAttrsData.h>
-// #include <maya/MArrayDataBuilder.h>
-// #include <maya/MArrayDataHandle.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnNumericAttribute.h>
 #include <maya/MFnEnumAttribute.h>
@@ -32,6 +31,7 @@
 #include <maya/MGlobal.h>
 #include <maya/MPlug.h>
 #include <maya/MPxNode.h>
+#include <maya/MStatus.h>
 #include <maya/MPxLocatorNode.h>
 #include <maya/MObject.h>
 #include <maya/MMatrix.h>
@@ -45,8 +45,6 @@ MObject IntersectionMarkerNode::meshB;
 MObject IntersectionMarkerNode::offsetMatrix;
 MObject IntersectionMarkerNode::restIntersected;
 
-MObject IntersectionMarkerNode::vertexChecksumA;
-MObject IntersectionMarkerNode::vertexChecksumB;
 MObject IntersectionMarkerNode::kernelType;
 
 MObject IntersectionMarkerNode::outputIntersected;
@@ -95,22 +93,6 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(restIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    // Initialize Vertex Checksum of Mesh A
-    vertexChecksumA = nAttr.create(VERTEX_CHECKSUM_A, VERTEX_CHECKSUM_A, MFnNumericData::kInt, -1);
-    nAttr.setStorable(true);
-    nAttr.setKeyable(false);
-    nAttr.setWritable(false);
-    status = addAttribute(vertexChecksumA);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    // Initialize Vertex Checksum of Mesh B
-    vertexChecksumB = nAttr.create(VERTEX_CHECKSUM_B, VERTEX_CHECKSUM_B, MFnNumericData::kInt, -1);
-    nAttr.setStorable(true);
-    nAttr.setKeyable(false);
-    nAttr.setWritable(false);
-    status = addAttribute(vertexChecksumB);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
     // Initialize Kernel
     kernelType = eAttr.create(KERNEL, KERNEL, 0, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -129,25 +111,12 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    // Add dependencies
-    status = attributeAffects(meshA, vertexChecksumA);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = attributeAffects(meshB, vertexChecksumB);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    status = attributeAffects(offsetMatrix, vertexChecksumA);
-    status = attributeAffects(offsetMatrix, vertexChecksumB);
     status = attributeAffects(offsetMatrix, outputIntersected);
     status = attributeAffects(meshA, outputIntersected);
     status = attributeAffects(meshB, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     status = attributeAffects(kernelType, outputIntersected);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    status = attributeAffects(vertexChecksumA, outputIntersected);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-    status = attributeAffects(vertexChecksumB, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     return MS::kSuccess;
@@ -200,28 +169,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     MObject meshBObject = meshBHandle.asMesh();
     MMatrix offset = dataBlock.inputValue(offsetMatrix).asMatrix();
     // -------------------------------------------------------------------------------------------
-
-    // update checksums
-    // MGlobal::displayInfo("update checksums...");
-    int newCheckA = getVertexChecksum(meshAObject);
-    int newCheckB = getVertexChecksum(meshBObject);
-
-    MDataHandle vertexChecksumAHandle = dataBlock.outputValue(vertexChecksumA);
-    MDataHandle vertexChecksumBHandle = dataBlock.outputValue(vertexChecksumB);
-
-    int checkA = vertexChecksumAHandle.asInt();
-    int checkB = vertexChecksumBHandle.asInt();
-
-    // If the checksums are the same, then we don't need to do anything
-    // because the meshes have not changed.
-    if (checkA == newCheckA && checkB == newCheckB) {
-        // return MS::kSuccess;
-    }
-
-    vertexChecksumAHandle.set(newCheckA);
-    vertexChecksumAHandle.setClean();
-    vertexChecksumBHandle.set(newCheckB);
-    vertexChecksumBHandle.setClean();
 
     // Build kernel
     std::unique_ptr<SpatialDivisionKernel> kernel = getActiveKernel();

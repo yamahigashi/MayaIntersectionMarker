@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SpatialDivisionKernel.h"
+#include "../SpatialDivisionKernel.h"
 
 #include <maya/MPoint.h>
 #include <maya/MStatus.h>
@@ -28,9 +28,9 @@ public:
         }
         // first dword
         uint32_t ofs : 30;  // offset in node[] array (if inner), or brick ID
-                            // (if leaf)
+                                // (if leaf)
         uint32_t dim : 2;   // upper two bits: split dimension. '3' means 'leaf
-                            // second dword
+                                // second dword
         union
         {
             float pos;
@@ -43,4 +43,5 @@ private:
     RTCDevice rtcDevice;
     Node *rtcRoot;
     int bvhDepth;
+
 };

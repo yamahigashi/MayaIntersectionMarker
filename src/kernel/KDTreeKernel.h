@@ -1,6 +1,7 @@
 #pragma once
 
-#include "SpatialDivisionKernel.h"
+#include "../SpatialDivisionKernel.h"
+
 #include <maya/MPoint.h>
 #include <maya/MStatus.h>
 

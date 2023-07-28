@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SpatialDivisionKernel.h"
+#include "../SpatialDivisionKernel.h"
 
 #include <maya/MDagPath.h>
 #include <maya/MBoundingBox.h>
