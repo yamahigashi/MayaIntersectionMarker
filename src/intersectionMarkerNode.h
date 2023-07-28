@@ -48,8 +48,8 @@ public:
     static MStatus      getCacheKey(MObject &node, std::string &key);
     static MStatus      getCacheKeyFromMesh(MObject &meshObjA, MObject &meshObjB, std::string &key);
 
-std::unique_ptr<SpatialDivisionKernel> getActiveKernel() const;
-            MStatus     checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset);
+std::shared_ptr<SpatialDivisionKernel> getActiveKernel() const;
+            MStatus     checkIntersections(MObject &meshAObject, MObject &meshBObject, std::shared_ptr<SpatialDivisionKernel> kernel, MMatrix offset);
             MStatus     getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
       MBoundingBox      getBoundingBox(const MObject &meshObject) const;
            MStatus      createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);

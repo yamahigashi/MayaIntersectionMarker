@@ -156,29 +156,46 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     // Check if the plug parameter corresponds to the attribute that this node
     // is supposed to handle
     if (plug != outputIntersected) {
-        // return MStatus::kUnknownParameter;
+        return MStatus::kUnknownParameter;
     }
 
     // Get necessary input data from the dataBlock. This is usually data from
     // the input attributes of the node.
-    MDataHandle meshAHandle = dataBlock.inputValue(meshA);
-    MDataHandle meshBHandle = dataBlock.inputValue(meshB);
+    MDataHandle meshAHandle = dataBlock.inputValue(meshA, &status);
+    if(status != MStatus::kSuccess) {
+        MGlobal::displayError("Failed to get meshA data handle");
+        return status;
+    }
+    MDataHandle meshBHandle = dataBlock.inputValue(meshB, &status);
+    if(status != MStatus::kSuccess) {
+        MGlobal::displayError("Failed to get meshB data handle");
+        return status;
+    }
+    MDataHandle offsetHandle = dataBlock.inputValue(offsetMatrix);
+    if(status != MStatus::kSuccess) {
+        MGlobal::displayError("Failed to get offset data handle");
+        return status;
+    }
 
     // Get the MObject of the meshes
     MObject meshAObject = meshAHandle.asMesh();
     MObject meshBObject = meshBHandle.asMesh();
-    MMatrix offset = dataBlock.inputValue(offsetMatrix).asMatrix();
+    MMatrix offset = offsetHandle.asMatrix();
     // -------------------------------------------------------------------------------------------
 
     // Build kernel
-    std::unique_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
+    std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
     MBoundingBox bbox = getBoundingBox(meshA);
     bbox.transformUsing(offset);
     // MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
     status = kernel->build(meshAObject, bbox);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    status = checkIntersections(meshAObject, meshBObject, std::move(kernel), offset);
+    status = checkIntersections(meshAObject, meshBObject, kernel, offset);
+    if(status != MStatus::kSuccess) {
+        MGlobal::displayError("Failed to get offset data handle");
+        return status;
+    }
 
     // Get output data handle
     MDataHandle outputIntersectedHandle = dataBlock.outputValue(outputIntersected, &status);
@@ -196,7 +213,7 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 }
 
 
-MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject &meshBObject, std::unique_ptr<SpatialDivisionKernel> kernel, MMatrix offset)
+MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject &meshBObject, std::shared_ptr<SpatialDivisionKernel> kernel, MMatrix offset)
 {
     MStatus status;
     // MGlobal::displayInfo("checkIntersections...");
@@ -318,7 +335,7 @@ bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA,
 }
 
 
-std::unique_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const
+std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const
 {
     // Get the value of the 'kernel' attribute
     MPlug kernelPlug(thisMObject(), kernelType);
