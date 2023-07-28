@@ -38,7 +38,7 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 
             MPointArray points;
             MIntArray vertexList;
-            itPoly.getTriangle(i, points, vertexList, MSpace::kObject);
+            itPoly.getTriangle(i, points, vertexList, MSpace::kWorld);
 
             triangle.vertices[0] = points[0];
             triangle.vertices[1] = points[1];

@@ -231,7 +231,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 
     meshBFn.getTriangles(triangleCounts, triangleVertices);
     meshBFn.getTriangleOffsets(triangleCounts, triangleIndices);
-    meshBFn.getPoints(vertexPositions, MSpace::kObject);
+    meshBFn.getPoints(vertexPositions, MSpace::kWorld);
 
     // Calculate the offset into the triangleVertices array for each polygon
     MIntArray polygonTriangleOffsets(numPolygons, 0);

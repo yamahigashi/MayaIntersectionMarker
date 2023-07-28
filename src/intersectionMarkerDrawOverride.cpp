@@ -138,7 +138,7 @@ MStatus IntersectionMarkerDrawOverride::addIntersectedVertices(
         int numTriangles;
         itPoly.numTriangles(numTriangles);
         for (int j = 0; j < numTriangles; ++j) {
-            itPoly.getTriangle(j, vertices, vertexIndices, MSpace::kObject);
+            itPoly.getTriangle(j, vertices, vertexIndices, MSpace::kWorld);
             for (unsigned int k = 0; k < vertices.length(); ++k) {
                 // To avoid z-fighting, move the vertex a little bit along the normal
                 vertices[k] += normal * 0.001;
