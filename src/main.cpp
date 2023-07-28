@@ -14,6 +14,7 @@
 #include <maya/MEventMessage.h>
 
 #include "intersectionMarkerNode.h"
+#include "intersectionMarkerCommand.h"
 #include "intersectionMarkerDrawOverride.h"
 
 
@@ -21,13 +22,46 @@ const char* kAUTHOR = "Takayoshi Matsumoto";
 const char* kVERSION = "0.0.1";
 const char* kREQUIRED_API_VERSION = "Any";
 
+MString IntersectionMarkerCommand::COMMAND_NAME      = "intersectionMarker";
 MString IntersectionMarkerNode::NODE_NAME            = "intersectionMarker";
 MTypeId IntersectionMarkerNode::NODE_ID              = 0x0012a540;
 MString IntersectionMarkerNode::drawDbClassification = "drawdb/geometry/intersectionMarkerDrawOverrider";
 MString IntersectionMarkerNode::drawRegistrantId     = "intersectionMarkerDrawOverrider";
 
-#define REGISTER_COMMAND(CMD) CHECK_MSTATUS_AND_RETURN_IT(fnPlugin.registerCommand(CMD::COMMAND_NAME, CMD::creator, CMD::getSyntax));
-#define DEREGISTER_COMMAND(CMD) CHECK_MSTATUS_AND_RETURN_IT(fnPlugin.deregisterCommand(CMD::COMMAND_NAME))
+#define REGISTER_COMMAND(CMD) \
+    do { \
+        MStatus status = fnPlugin.registerCommand( \
+                CMD::COMMAND_NAME, \
+                CMD::creator, \
+                CMD::getSyntax); \
+        CHECK_MSTATUS_AND_RETURN_IT(status); \
+    } while (0)
+
+#define DEREGISTER_COMMAND(CMD) \
+    do { \
+        MStatus = fnPlugin.deregisterCommand(CMD::COMMAND_NAME) \
+        CHECK_MSTATUS_AND_RETURN_IT(status); \
+    } while (0)
+
+
+#define REGISTER_CONTEXT_COMMAND(CTX, CMD) \
+    do { \
+        MStatus status = fnPlugin.registerContextCommand( \
+                CTX::COMMAND_NAME, \
+                CTX::creator, \
+                CMD::COMMAND_NAME, \
+                CMD::creator, \
+                CMD::getSyntax); \
+        CHECK_MSTATUS_AND_RETURN_IT(status); \
+    } while (0)
+
+#define DEREGISTER_CONTEXT_COMMAND(CTX, CMD) \
+    do { \
+        MStatus = fnPlugin.deregisterCommand( \
+            CTX::COMMAND_NAME, \
+            CMD::COMMAND_NAME); \
+        CHECK_MSTATUS_AND_RETURN_IT(status); \
+    } while (0)
 
 #define REGISTER_NODE(NODE) \
     do { \
@@ -83,6 +117,7 @@ MStatus initializePlugin(MObject obj)
 {
     MStatus status;
     MFnPlugin fnPlugin(obj, kAUTHOR, kVERSION, kREQUIRED_API_VERSION);
+    REGISTER_COMMAND(IntersectionMarkerCommand);
 	  REGISTER_LOCATOR_NODE(IntersectionMarkerNode);
     REGISTER_DRAW_OVERRIDE(IntersectionMarkerNode, IntersectionMarkerDrawOverride);
 
