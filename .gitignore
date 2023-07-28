@@ -1,6 +1,9 @@
 build/*
 mayabuild_*/*
 .vscode/*
+embree/*
+modules/*
+sample_src/*
 
 # Prerequisites
 *.d
