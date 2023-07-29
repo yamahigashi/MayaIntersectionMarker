@@ -18,6 +18,7 @@
 #include <maya/MFnMesh.h>
 #include <maya/MStatus.h>
 #include <maya/MPoint.h>
+#include <maya/MBoundingBox.h>
 
 
 struct TriangleData {
@@ -103,14 +104,16 @@ static inline MStatus offsetPolygon(MFnMesh& meshFn, unsigned int polyIndex, flo
 }
 
 
-static MPoint computeEdgePlaneIntersection(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd) {
+static MPoint computeEdgePlaneIntersection(const MVector& planeNormal, const MVector& planeOrigin, const MPoint& edgeStart, const MPoint& edgeEnd)
+{
     MVector edgeDirection = edgeEnd - edgeStart;
     double t = ((planeOrigin - edgeStart) * planeNormal) / (edgeDirection * planeNormal);
     return edgeStart + t * edgeDirection;
 }
 
 
-static bool isPointInsideTriangle(const MPoint& point, const TriangleData& triangle) {
+static bool isPointInsideTriangle(const MPoint& point, const TriangleData& triangle)
+{
     MVector v0 = triangle.vertices[2] - triangle.vertices[0];
     MVector v1 = triangle.vertices[1] - triangle.vertices[0];
     MVector v2 = point - triangle.vertices[0];
@@ -126,4 +129,38 @@ static bool isPointInsideTriangle(const MPoint& point, const TriangleData& trian
     double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
 
     return (u >= 0) && (v >= 0) && (u + v < 1);
+}
+
+
+__forceinline const double size(const MBoundingBox& bbox)
+{
+    double width = bbox.width();
+    double height = bbox.height();
+    double depth = bbox.depth();
+
+    return 2.0 * (width * height + width * depth + height * depth);
+}
+
+
+__forceinline const double halfarea(const MBoundingBox& bbox)
+{
+    double width = bbox.width();
+    double height = bbox.height();
+    double depth = bbox.depth();
+
+    return (width * height + width * depth + height * depth);
+}
+
+
+__forceinline const double area(const MBoundingBox& bbox)
+{
+    return 2.0 * halfarea(bbox);
+}
+
+
+__forceinline const MBoundingBox merge(const MBoundingBox& bbox1, const MBoundingBox& bbox2)
+{
+    MBoundingBox bbox = MBoundingBox(bbox1);
+    bbox.expand(bbox2);
+    return bbox;
 }
