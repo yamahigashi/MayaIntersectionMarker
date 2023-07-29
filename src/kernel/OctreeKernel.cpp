@@ -46,7 +46,7 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
             triangle.faceIndex = itPoly.index();
 
             // Add the triangle to the octree
-            insertTriangle(root, triangle);
+            insertTriangle(root, triangle, 0);
         }
     }
 
@@ -55,9 +55,17 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 
 
 int MAX_TRIANGLES_PER_NODE = 10;
+int MAX_DEPTH = 10;
 
-void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle)
+void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle, int depth)
 {
+    if (depth > MAX_DEPTH) {
+
+        // If we have reached the maximum depth, add the triangle to this node
+        node->triangles.push_back(triangle);
+        return;
+    }
+
     if (node->isLeaf()) {
         if (node->triangles.size() < MAX_TRIANGLES_PER_NODE) {
             // If this leaf node can still hold more triangles, add it here
@@ -65,14 +73,14 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
         } else {
             // If this leaf node is full, split it and then try to add the triangle again
             splitNode(node);
-            insertTriangle(node, triangle);
+            insertTriangle(node, triangle , depth + 1);
         }
     } else {
         // If this is not a leaf node, try to add the triangle to its children
         bool inserted = false;
         for (int i = 0; i < 8; ++i) {
             if (node->children[i] != nullptr && boxTriangleIntersect(node->children[i]->boundingBox, triangle, false)) {
-                insertTriangle(node->children[i], triangle);
+                insertTriangle(node->children[i], triangle , depth + 1);
                 inserted = true;
             }
         }
@@ -189,7 +197,8 @@ bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleD
     }
 
     // Create a bounding box for the triangle
-    MBoundingBox triangleBox(triangle.vertices[0], triangle.vertices[0]);
+    MBoundingBox triangleBox;
+    triangleBox.expand(triangle.vertices[0]);
     triangleBox.expand(triangle.vertices[1]);
     triangleBox.expand(triangle.vertices[2]);
 
