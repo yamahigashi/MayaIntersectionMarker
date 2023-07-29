@@ -38,7 +38,7 @@ public:
         }
     }
 
-    MStatus build(const MObject& meshObject, const MBoundingBox& bbox) override;
+    MStatus build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix) override;
     std::vector<TriangleData> queryIntersected(const TriangleData& triangle) const override;
 
 private:

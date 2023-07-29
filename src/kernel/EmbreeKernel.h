@@ -4,6 +4,7 @@
 
 #include <maya/MPoint.h>
 #include <maya/MStatus.h>
+#include <maya/MMatrix.h>
 
 #include <embree4/rtcore.h>
 #include <embree4/rtcore_geometry.h>
@@ -16,7 +17,7 @@ class EmbreeKernel : public SpatialDivisionKernel
 public:
     ~EmbreeKernel() override {};
 
-    MStatus build(const MObject& meshObject, const MBoundingBox& bbox) override;
+    MStatus build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix) override;
     std::vector<TriangleData> queryIntersected(const TriangleData& triangle) const override;
 
 

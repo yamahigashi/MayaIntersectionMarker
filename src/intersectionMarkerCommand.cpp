@@ -111,26 +111,18 @@ MStatus IntersectionMarkerCommand::doIt(const MArgList& argList)
     // MGlobal::displayInfo("plug connected");
 
     // offset matrix
-    MPlug meshAInverseMatrixPlug = MFnDependencyNode(meshFnA.parent(0)).findPlug("inverseMatrix", false, &status);
+    MPlug meshAMatrixPlug = MFnDependencyNode(meshFnA.parent(0)).findPlug("matrix", false, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     MPlug meshBMatrixPlug = MFnDependencyNode(meshFnB.parent(0)).findPlug("matrix", false, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
-    MObject multMatrix = dgMod.createNode("multMatrix", &status);
-    status = dgMod.doIt();
-    CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    MFnDependencyNode multMatrixFn(multMatrix);
-    MPlug multMatrixMatrixPlug = multMatrixFn.findPlug("matrixIn", false, &status);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    MPlug markerOffsetAPlug = markerNodeFn.findPlug("offsetMatrixA", false, &status);
+    MPlug markerOffsetBPlug = markerNodeFn.findPlug("offsetMatrixB", false, &status);
 
-    dgMod.connect(meshAInverseMatrixPlug, multMatrixMatrixPlug.elementByLogicalIndex(0));
+    dgMod.connect(meshAMatrixPlug, markerOffsetAPlug);
     status = dgMod.doIt();
-    dgMod.connect(meshBMatrixPlug, multMatrixMatrixPlug.elementByLogicalIndex(1));
-    status = dgMod.doIt();
-
-    MPlug markerOffsetPlug = markerNodeFn.findPlug("offsetMatrix", false, &status);
-    dgMod.connect(multMatrixFn.findPlug("matrixSum", false), markerOffsetPlug);
+    dgMod.connect(meshBMatrixPlug, markerOffsetBPlug);
     status = dgMod.doIt();
 
     CHECK_MSTATUS_AND_RETURN_IT(status);

@@ -53,7 +53,7 @@ void errorHandler(void* userPtr, enum RTCError code, const char* str)
     }
 }
 
-MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
+MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix)
 {
     MStatus status;
 

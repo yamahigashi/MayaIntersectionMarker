@@ -28,6 +28,7 @@
 #include <maya/MFnNumericData.h>
 #include <maya/MFnTypedAttribute.h>
 #include <maya/MFnMatrixAttribute.h>
+#include <maya/MFnMatrixData.h>
 #include <maya/MGlobal.h>
 #include <maya/MPlug.h>
 #include <maya/MPxNode.h>
@@ -42,7 +43,8 @@
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
-MObject IntersectionMarkerNode::offsetMatrix;
+MObject IntersectionMarkerNode::offsetMatrixA;
+MObject IntersectionMarkerNode::offsetMatrixB;
 MObject IntersectionMarkerNode::restIntersected;
 
 MObject IntersectionMarkerNode::kernelType;
@@ -80,8 +82,11 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Offset Matrix
-    offsetMatrix = mAttr.create(OFFSET_MATRIX, OFFSET_MATRIX);
-    status = addAttribute(offsetMatrix);
+    offsetMatrixA = mAttr.create(OFFSET_MATRIX_A, OFFSET_MATRIX_A);
+    status = addAttribute(offsetMatrixA);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    offsetMatrixB = mAttr.create(OFFSET_MATRIX_B, OFFSET_MATRIX_B);
+    status = addAttribute(offsetMatrixB);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Rest Intersected
@@ -111,7 +116,8 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    status = attributeAffects(offsetMatrix, outputIntersected);
+    status = attributeAffects(offsetMatrixA, outputIntersected);
+    status = attributeAffects(offsetMatrixB, outputIntersected);
     status = attributeAffects(meshA, outputIntersected);
     status = attributeAffects(meshB, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -171,27 +177,33 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         MGlobal::displayError("Failed to get meshB data handle");
         return status;
     }
-    MDataHandle offsetHandle = dataBlock.inputValue(offsetMatrix);
+    MDataHandle offsetAHandle = dataBlock.inputValue(offsetMatrixA);
     if(status != MStatus::kSuccess) {
-        MGlobal::displayError("Failed to get offset data handle");
+        MGlobal::displayError("Failed to get offset A data handle");
+        return status;
+    }
+
+    MDataHandle offsetBHandle = dataBlock.inputValue(offsetMatrixB);
+    if(status != MStatus::kSuccess) {
+        MGlobal::displayError("Failed to get offset B data handle");
         return status;
     }
 
     // Get the MObject of the meshes
     MObject meshAObject = meshAHandle.asMesh();
     MObject meshBObject = meshBHandle.asMesh();
-    MMatrix offset = offsetHandle.asMatrix();
+    MMatrix offsetA = offsetAHandle.asMatrix();
+    MMatrix offsetB = offsetBHandle.asMatrix();
     // -------------------------------------------------------------------------------------------
 
     // Build kernel
     std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
     MBoundingBox bbox = getBoundingBox(meshA);
-    bbox.transformUsing(offset);
-    // MGlobal::displayInfo(MString("bbox: ") + bbox.min().x + " " + bbox.min().y + " " + bbox.min().z + " " + bbox.max().x + " " + bbox.max().y + " " + bbox.max().z);
-    status = kernel->build(meshAObject, bbox);
+    bbox.transformUsing(offsetA);
+    status = kernel->build(meshAObject, bbox, offsetA);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    status = checkIntersections(meshAObject, meshBObject, kernel, offset);
+    status = checkIntersections(meshAObject, meshBObject, kernel, offsetB);
     if(status != MStatus::kSuccess) {
         MGlobal::displayError("Failed to get offset data handle");
         return status;
@@ -245,12 +257,12 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
         polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
     }
 
-    #pragma omp parallel
+    // #pragma omp parallel
     {
         std::unordered_set<int> intersectedFaceIdsLocalA;
         std::unordered_set<int> intersectedFaceIdsLocalB;
 
-        #pragma omp for
+        // #pragma omp for
         for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
 
             TriangleData triangle;
@@ -267,15 +279,17 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 
                 // Check intersection between triangle and the octree (kernel)
                 std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
-                // 
+
+
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 bool hit = false;
                 if (!intersectedTriangles.empty()) {
                     for(int k = 0; k < intersectedTriangles.size(); ++k) {
-                        hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
-                        if (hit) {
                             int a = intersectedTriangles[k].faceIndex;
                             int b = polygonIndex;
+                        hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
+                        // MGlobal::displayInfo(MString("Intersection: ") + std::to_wstring(polygonIndex).c_str() + std::to_wstring(a).c_str() + ":" + std::to_wstring(b).c_str() + " " + std::to_wstring(hit).c_str());
+                        if (hit) {
 
                             // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
                             intersectedFaceIdsLocalA.insert(a);
@@ -286,7 +300,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
             }
         }
 
-        #pragma omp critical
+        // #pragma omp critical
         {
             intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
             intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
@@ -375,6 +389,19 @@ MStatus IntersectionMarkerNode::getInputDagMesh(const MObject inputAttr, MFnMesh
     MDagPath sourceDagPath;
     sourceDagNode.getPath(sourceDagPath);
     outMesh.setObject(sourceDagPath);
+    
+    return MStatus::kSuccess; 
+}
+
+
+MStatus IntersectionMarkerNode::getOffsetMatrix(const MObject inputAttr, MMatrix &outMatrix) const
+{
+    MStatus status;
+    MPlug inputMeshPlug(thisMObject(), inputAttr);
+
+    MObject value = inputMeshPlug.asMObject();
+    MFnMatrixData data(value);
+    outMatrix = data.matrix();
     
     return MStatus::kSuccess; 
 }

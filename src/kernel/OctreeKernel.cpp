@@ -14,7 +14,7 @@
 #include <queue>
 
 
-MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
+MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix)
 {
     MStatus status;
     // Clear previous data if exists
@@ -38,11 +38,11 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 
             MPointArray points;
             MIntArray vertexList;
-            itPoly.getTriangle(i, points, vertexList, MSpace::kWorld);
+            itPoly.getTriangle(i, points, vertexList, MSpace::kObject);
 
-            triangle.vertices[0] = points[0];
-            triangle.vertices[1] = points[1];
-            triangle.vertices[2] = points[2];
+            triangle.vertices[0] = points[0] * offsetMatrix;
+            triangle.vertices[1] = points[1] * offsetMatrix;
+            triangle.vertices[2] = points[2] * offsetMatrix;
             triangle.faceIndex = itPoly.index();
 
             // Add the triangle to the octree
@@ -55,11 +55,12 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox)
 
 
 int MAX_TRIANGLES_PER_NODE = 10;
-int MAX_DEPTH = 10;
+int MAX_DEPTH = 32;
 
 void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle, int depth)
 {
     if (depth > MAX_DEPTH) {
+        // MGlobal::displayError("Octree depth exceeded!");
 
         // If we have reached the maximum depth, add the triangle to this node
         node->triangles.push_back(triangle);
@@ -154,6 +155,7 @@ std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& tri
                     std::back_inserter(intersectedTriangles)
                 );
             } else {
+                // If the current node is a leaf and its bounding box intersects with the triangle,
                 // If the current node is not a leaf, then check its children
                 for (int i = 0; i < 8; ++i) {
                     if (currentNode->children[i] != nullptr) {
@@ -201,6 +203,27 @@ bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleD
     triangleBox.expand(triangle.vertices[0]);
     triangleBox.expand(triangle.vertices[1]);
     triangleBox.expand(triangle.vertices[2]);
+
+    // MGlobal::displayInfo(
+    //         MString("A: boundingbox\n") + 
+    //         std::to_wstring(box.center().x).c_str() + ", " +
+    //         std::to_wstring(box.center().y).c_str() + ", " +
+    //         std::to_wstring(box.center().z).c_str() + "\n" +
+    //         std::to_wstring(box.width()).c_str() + ", " +
+    //         std::to_wstring(box.height()).c_str() + ", " +
+    //         std::to_wstring(box.depth()).c_str() + "\n"
+    //     );
+    // 
+    // MGlobal::displayInfo(
+    //         MString("B: boundingbox\n") + 
+    //         std::to_wstring(triangleBox.center().x).c_str() + ", " +
+    //         std::to_wstring(triangleBox.center().y).c_str() + ", " +
+    //         std::to_wstring(triangleBox.center().z).c_str() + "\n" +
+    //         std::to_wstring(triangleBox.width()).c_str() + ", " +
+    //         std::to_wstring(triangleBox.height()).c_str() + ", " +
+    //         std::to_wstring(triangleBox.depth()).c_str() + "\n"
+    // );
+
 
     // Check if the triangle's bounding box intersects with the given box
     if (box.intersects(triangleBox)) {

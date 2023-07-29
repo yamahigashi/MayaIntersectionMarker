@@ -106,8 +106,14 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     status = node->getInputDagMesh(node->meshB, meshBFn);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: meshBFn is null");
 
-    addIntersectedVertices(meshAFn, data, node->intersectedFaceIdsA);
-    addIntersectedVertices(meshBFn, data, node->intersectedFaceIdsB);
+    // Get the offset matrix
+    MMatrix outMatrixA;
+    MMatrix outMatrixB;
+    node->getOffsetMatrix(node->offsetMatrixA, outMatrixA);
+    node->getOffsetMatrix(node->offsetMatrixB, outMatrixB);
+
+    addIntersectedVertices(meshAFn, data, node->intersectedFaceIdsA, outMatrixA);
+    addIntersectedVertices(meshBFn, data, node->intersectedFaceIdsB, outMatrixB);
 
     return data;
 }
@@ -116,7 +122,8 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
 MStatus IntersectionMarkerDrawOverride::addIntersectedVertices(
         const MFnMesh& meshFn,
         IntersectionMarkerData* data,
-        const std::unordered_set<int> &intersectedFaceIds
+        const std::unordered_set<int> &intersectedFaceIds,
+        const MMatrix &offsetMatrix
 ) {
     MStatus status;
 
@@ -138,10 +145,11 @@ MStatus IntersectionMarkerDrawOverride::addIntersectedVertices(
         int numTriangles;
         itPoly.numTriangles(numTriangles);
         for (int j = 0; j < numTriangles; ++j) {
-            itPoly.getTriangle(j, vertices, vertexIndices, MSpace::kWorld);
+            itPoly.getTriangle(j, vertices, vertexIndices, MSpace::kObject);
             for (unsigned int k = 0; k < vertices.length(); ++k) {
                 // To avoid z-fighting, move the vertex a little bit along the normal
                 vertices[k] += normal * 0.001;
+                vertices[k] *= offsetMatrix;
                 faceData.vertices.append(vertices[k]);
                 faceData.edges.append(vertices[k]);
                 faceData.normals.append(normal);

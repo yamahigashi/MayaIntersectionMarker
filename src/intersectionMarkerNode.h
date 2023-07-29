@@ -22,7 +22,8 @@
 
 #define MESH_A             "inMeshA"
 #define MESH_B             "inMeshB"
-#define OFFSET_MATRIX      "offsetMatrix"
+#define OFFSET_MATRIX_A    "offsetMatrixA"
+#define OFFSET_MATRIX_B    "offsetMatrixB"
 #define REST_INTERSECTED   "restIntersected"
 
 #define KERNEL             "kernel"
@@ -51,6 +52,7 @@ public:
 std::shared_ptr<SpatialDivisionKernel> getActiveKernel() const;
             MStatus     checkIntersections(MObject &meshAObject, MObject &meshBObject, std::shared_ptr<SpatialDivisionKernel> kernel, MMatrix offset);
             MStatus     getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
+            MStatus     getOffsetMatrix(const MObject inputAttr, MMatrix &outMatrix) const;
       MBoundingBox      getBoundingBox(const MObject &meshObject) const;
            MStatus      createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
               bool      checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const;
@@ -61,7 +63,8 @@ std::shared_ptr<SpatialDivisionKernel> getActiveKernel() const;
 public:
     static MObject      meshA;
     static MObject      meshB;
-    static MObject      offsetMatrix;
+    static MObject      offsetMatrixA;
+    static MObject      offsetMatrixB;
     static MObject      restIntersected;
 
     static MObject      vertexChecksumA;
