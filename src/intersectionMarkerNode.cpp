@@ -47,9 +47,12 @@ MObject IntersectionMarkerNode::offsetMatrixA;
 MObject IntersectionMarkerNode::offsetMatrixB;
 MObject IntersectionMarkerNode::restIntersected;
 
+MObject IntersectionMarkerNode::vertexChecksumA;
+MObject IntersectionMarkerNode::vertexChecksumB;
 MObject IntersectionMarkerNode::kernelType;
 
 MObject IntersectionMarkerNode::outputIntersected;
+CacheType IntersectionMarkerNode::cache(CACHE_SIZE);
 
 IntersectionMarkerNode::IntersectionMarkerNode() {}
 IntersectionMarkerNode::~IntersectionMarkerNode() {}
@@ -96,6 +99,22 @@ MStatus IntersectionMarkerNode::initialize()
     nAttr.setWritable(false);
     nAttr.setReadable(true);
     status = addAttribute(restIntersected);
+
+    // Initialize Vertex Checksum of Meshes
+    vertexChecksumA = nAttr.create(VERTEX_CHECKSUM_A, VERTEX_CHECKSUM_A, MFnNumericData::kInt, -1);
+    nAttr.setStorable(true);
+    nAttr.setKeyable(false);
+    nAttr.setWritable(false);
+    nAttr.setReadable(false);
+    status = addAttribute(vertexChecksumA);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    vertexChecksumB = nAttr.create(VERTEX_CHECKSUM_B, VERTEX_CHECKSUM_B, MFnNumericData::kInt, -1);
+    nAttr.setStorable(true);
+    nAttr.setKeyable(false);
+    nAttr.setWritable(false);
+    nAttr.setReadable(false);
+    status = addAttribute(vertexChecksumB);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Kernel
@@ -116,6 +135,12 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
+    // Add dependencies
+    status = attributeAffects(meshA, vertexChecksumA);
+    status = attributeAffects(meshB, vertexChecksumB);
+    status = attributeAffects(offsetMatrixA, vertexChecksumA);
+    status = attributeAffects(offsetMatrixB, vertexChecksumB);
+
     status = attributeAffects(offsetMatrixA, outputIntersected);
     status = attributeAffects(offsetMatrixB, outputIntersected);
     status = attributeAffects(meshA, outputIntersected);
@@ -131,7 +156,9 @@ MStatus IntersectionMarkerNode::initialize()
 
 MStatus IntersectionMarkerNode::postEvaluation( const  MDGContext& context, const MEvaluationNode& evaluationNode, PostEvaluationType evalType )
 {
-    MGlobal::displayInfo("Post Evaluation");
+    // TODO: Implement this function
+
+    // MGlobal::displayInfo("node Post Evaluation");
     if(!context.isNormal()) {
         return MStatus::kFailure;
     }
@@ -156,6 +183,7 @@ MStatus IntersectionMarkerNode::postEvaluation( const  MDGContext& context, cons
 // perform intersection tests and determine where to draw markers based on the results.
 MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock)
 {
+    // MGlobal::displayInfo("node compute");
     MStatus status;
     // MGlobal::displayInfo("Computing...");
 
@@ -194,19 +222,67 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     MObject meshBObject = meshBHandle.asMesh();
     MMatrix offsetA = offsetAHandle.asMatrix();
     MMatrix offsetB = offsetBHandle.asMatrix();
+
+    // -------------------------------------------------------------------------------------------
+    // update checksums
+    // MGlobal::displayInfo("update checksums...");
+    int newCheckA = getVertexChecksum(meshAObject, offsetA);
+    int newCheckB = getVertexChecksum(meshBObject, offsetB);
+
+    MDataHandle vertexChecksumAHandle = dataBlock.outputValue(vertexChecksumA);
+    MDataHandle vertexChecksumBHandle = dataBlock.outputValue(vertexChecksumB);
+
+    int checkA = vertexChecksumAHandle.asInt();
+    int checkB = vertexChecksumBHandle.asInt();
+
+    // If the checksums are the same, then we don't need to do anything
+    // because the meshes have not changed.
+    if (checkA == newCheckA && checkB == newCheckB) {
+        vertexChecksumAHandle.setClean();
+        vertexChecksumBHandle.setClean();
+        return MS::kSuccess;
+    }
+
+    vertexChecksumAHandle.set(newCheckA);
+    vertexChecksumAHandle.setClean();
+    vertexChecksumBHandle.set(newCheckB);
+    vertexChecksumBHandle.setClean();
+
+    // -------------------------------------------------------------------------------------------
+    // Calculate intersections
     // -------------------------------------------------------------------------------------------
 
-    // Build kernel
-    std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
-    MBoundingBox bbox = getBoundingBox(meshA);
-    bbox.transformUsing(offsetA);
-    status = kernel->build(meshAObject, bbox, offsetA);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
+    // Check if the result cached
+    CacheKeyType key = std::make_pair(newCheckA, newCheckB);
+    try {
 
-    status = checkIntersections(meshAObject, meshBObject, kernel, offsetB);
-    if(status != MStatus::kSuccess) {
-        MGlobal::displayError("Failed to get offset data handle");
-        return status;
+        CacheResultType res = this->cache.get(key);
+        this->intersectedFaceIdsA = res.first;
+        this->intersectedFaceIdsB = res.second;
+
+    } catch (const std::out_of_range&) {
+
+        // The result is not in the cache
+        this->intersectedFaceIdsA.clear();
+        this->intersectedFaceIdsB.clear();
+
+        // Build kernel
+        std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
+        MBoundingBox bbox = getBoundingBox(meshA);
+        bbox.transformUsing(offsetA);
+        status = kernel->build(meshAObject, bbox, offsetA);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        status = checkIntersections(meshAObject, meshBObject, kernel, offsetB);
+        if(status != MStatus::kSuccess) {
+            MGlobal::displayError("Failed to get offset data handle");
+            return status;
+        }
+
+        // -------------------------------------------------------------------------------------------
+        // Store the result in the cache
+        CacheResultType res{this->intersectedFaceIdsA, this->intersectedFaceIdsB};
+        this->cache.put(key, res);
     }
 
     // Get output data handle
@@ -214,8 +290,8 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     outputIntersectedHandle.set((intersectedFaceIdsA.size() > 0) || (intersectedFaceIdsB.size() > 0));
     outputIntersectedHandle.setClean();
 
-    // -------------------------------------------------------------------------------------------
 
+    // clean up
     meshAHandle.setClean();
     meshBHandle.setClean();
     outputIntersectedHandle.setClean();
@@ -257,12 +333,12 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
         polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
     }
 
-    // #pragma omp parallel
+    #pragma omp parallel
     {
         std::unordered_set<int> intersectedFaceIdsLocalA;
         std::unordered_set<int> intersectedFaceIdsLocalB;
 
-        // #pragma omp for
+        #pragma omp for
         for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
 
             TriangleData triangle;
@@ -300,7 +376,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
             }
         }
 
-        // #pragma omp critical
+        #pragma omp critical
         {
             intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
             intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
@@ -420,4 +496,22 @@ MBoundingBox IntersectionMarkerNode::getBoundingBox(const MObject &meshObject) c
     MBoundingBox bbox = fnMesh.boundingBox();
 
     return bbox;
+}
+
+
+MStatus IntersectionMarkerNode::getChecksumA(int &outChecksum) const
+{
+    MStatus status;
+    MPlug checksumPlug(thisMObject(), vertexChecksumA);
+    outChecksum = checksumPlug.asInt();
+    return MStatus::kSuccess;
+}
+
+
+MStatus IntersectionMarkerNode::getChecksumB(int &outChecksum) const
+{
+    MStatus status;
+    MPlug checksumPlug(thisMObject(), vertexChecksumB);
+    outChecksum = checksumPlug.asInt();
+    return MStatus::kSuccess;
 }

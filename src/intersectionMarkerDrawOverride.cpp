@@ -29,10 +29,9 @@
 
 
 IntersectionMarkerDrawOverride::IntersectionMarkerDrawOverride(const MObject& obj)
-    : MHWRender::MPxDrawOverride(obj, NULL, /* isAlwaysDirty=*/false)
+    : MHWRender::MPxDrawOverride(obj, NULL, /* isAlwaysDirty=*/true)
     , fNode(obj)
 {
-    // MGlobal::displayInfo("IntersectionMarkerDrawOverride::IntersectionMarkerDrawOverride");
     fModelEditorChangedCbId = MEventMessage::addEventCallback(
         "modelEditorChanged",
         OnModelEditorChanged,
@@ -81,9 +80,6 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
         data = new IntersectionMarkerData();
     }
 
-    // Reset face data
-    data->faces.clear();
-
     MObject drawNode = objPath.node(&status);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: objPath.node is null");
 
@@ -97,6 +93,22 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
         MGlobal::displayInfo(MString("prepareForDraw: locnode is null: real type: ") + depNodeFn.typeName());
         return data;
     }
+
+    int checkSumA;
+    int checkSumB;
+    status = node->getChecksumA(checkSumA);
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: getChecksumA failed");
+    status = node->getChecksumB(checkSumB);
+    CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: getChecksumB failed");
+    int newChecksum = checkSumA ^ checkSumB;
+    if (newChecksum == prevChecksum) {
+        return data;
+    }
+
+    // Reset face data
+    data->faces.clear();
+
+    prevChecksum = newChecksum;
 
     MFnMesh meshAFn;
     MFnMesh meshBFn;
@@ -170,7 +182,6 @@ void IntersectionMarkerDrawOverride::addUIDrawables(
     const MHWRender::MFrameContext& frameContext,
     const MUserData* data)
 {
-    // MGlobal::displayInfo("addUIDrawables");
     // cast the user data back to our to our struct
     const IntersectionMarkerData* markerData = dynamic_cast<const IntersectionMarkerData*>(data);
     if (!markerData) {
