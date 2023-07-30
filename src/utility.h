@@ -1,8 +1,8 @@
+#pragma once
 /**
     Copyright (c) 2023 Takayoshi Matsumoto
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
-#pragma once
 
 #include <vector>
 #include <unordered_map>
@@ -18,14 +18,98 @@
 #include <maya/MFnMesh.h>
 #include <maya/MStatus.h>
 #include <maya/MPoint.h>
+#include <maya/MMatrix.h>
 #include <maya/MBoundingBox.h>
 
 
-struct TriangleData {
+struct TriangleData
+{
     int faceIndex;
     MPoint vertices[3];
 };
 
+class PolyChecksum
+{
+public:
+    PolyChecksum()
+    {
+        // for all possible byte values
+        for (unsigned i = 0; i < 256; ++i)
+        {
+            unsigned long reg = i << 24;
+            // for all bits in a byte
+            for (int j = 0; j < 8; ++j)
+            {
+                bool topBit = (reg & 0x80000000) != 0;
+                reg <<= 1;
+
+                if (topBit)
+                    reg ^= _key;
+            }
+            _table [i] = reg;
+        }
+    };
+
+    virtual void        putBytes(void* bytes, size_t dataSize)
+    {
+        unsigned char* ptr = (unsigned char*) bytes;
+
+        for (size_t i = 0; i < dataSize; i++)
+        {
+            unsigned byte = *(ptr + i);
+            unsigned top = _register >> 24;
+            top ^= byte;
+            top &= 255;
+
+            _register = (_register << 8) ^ _table [top];
+        }
+    }
+    ;
+    virtual int         getResult() const { return (int) _register; }
+
+public:
+    unsigned long       _table[256];
+    unsigned long       _register = 0;
+    unsigned long       _key = 0x04c11db7;
+};
+
+
+static inline int getVertexChecksum(MObject polyObject, MMatrix& offsetMatrix)
+{
+    PolyChecksum checksum;
+
+    MItMeshVertex itVertex(polyObject);
+
+    while (!itVertex.isDone())
+    {
+        int index = itVertex.index();
+        checksum.putBytes(&index, sizeof(index));
+
+        // topology
+        MIntArray connectedVertices;
+        itVertex.getConnectedVertices(connectedVertices);
+        uint numConnectedVertices = connectedVertices.length();
+
+        for (uint i = 0; i < numConnectedVertices; i++)
+        {
+            uint idx = connectedVertices[i];
+            checksum.putBytes(&idx, sizeof(idx));
+        }
+
+        // position
+        MPoint point = itVertex.position(MSpace::kObject);
+        checksum.putBytes(&point, sizeof(point));
+
+        itVertex.next();
+    }
+
+    for (int i = 0; i < 4; i++) {
+        MFloatVector row = offsetMatrix[i];
+        checksum.putBytes(&row, sizeof(row));
+    }
+
+    return checksum.getResult();
+}
 
 
 static inline MVector computePlaneNormal(const MPoint& p1, const MPoint& p2, const MPoint& p3)

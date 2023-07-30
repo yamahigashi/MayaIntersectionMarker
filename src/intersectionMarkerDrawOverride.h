@@ -74,4 +74,6 @@ private:
             const std::unordered_set<int> &intersectedFaceIds,
             const MMatrix& offsetMatrix
     );
+
+    int prevChecksum = -1;
 };
