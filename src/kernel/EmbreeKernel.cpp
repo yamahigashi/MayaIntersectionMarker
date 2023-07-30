@@ -190,37 +190,38 @@ std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& tri
     return std::vector<TriangleData>();
 }
 
-bool EmbreeKernel::intersectTriangleTriangle(unsigned geomID0, unsigned primID0, unsigned geomID1, unsigned primID1)
-{
-  //CSTAT(bvh_collide_prim_intersections1++);
-  
-  /* special culling for scene intersection with itself */
-  if (geomID0 == geomID1 && primID0 == primID1) {
-    return false;
-  }
-  //CSTAT(bvh_collide_prim_intersections2++);
-
-  auto mesh0 = meshes[geomID0].get ();
-  auto mesh1 = meshes[geomID1].get ();
-  auto const & tri0 = (Triangle&) mesh0->tris_[primID0];
-  auto const & tri1 = (Triangle&) mesh1->tris_[primID1];
-  
-  if (geomID0 == geomID1)
-  {
-    /* ignore intersection with topological neighbors */
-    const vint4 t0(tri0.v0,tri0.v1,tri0.v2,tri0.v2);
-    if (any(vint4(tri1.v0) == t0)) return false;
-    if (any(vint4(tri1.v1) == t0)) return false;
-    if (any(vint4(tri1.v2) == t0)) return false;
-  }
-  //CSTAT(bvh_collide_prim_intersections3++);
-  
-  const Vec3fa a0 = mesh0->x_[tri0.v0];
-  const Vec3fa a1 = mesh0->x_[tri0.v1];
-  const Vec3fa a2 = mesh0->x_[tri0.v2];
-  const Vec3fa b0 = mesh1->x_[tri1.v0];
-  const Vec3fa b1 = mesh1->x_[tri1.v1];
-  const Vec3fa b2 = mesh1->x_[tri1.v2];
-  
-  return isa::TriangleTriangleIntersector::intersect_triangle_triangle(a0,a1,a2,b0,b1,b2);
-}
+// bool EmbreeKernel::intersectTriangleTriangle(unsigned geomID0, unsigned primID0, unsigned geomID1, unsigned primID1)
+// {
+//   //CSTAT(bvh_collide_prim_intersections1++);
+// 
+//   /* special culling for scene intersection with itself */
+//   if (geomID0 == geomID1 && primID0 == primID1) {
+//     return false;
+//   }
+//   //CSTAT(bvh_collide_prim_intersections2++);
+// 
+//   auto mesh0 = meshes[geomID0].get ();
+//   auto mesh1 = meshes[geomID1].get ();
+//   auto const & tri0 = (Triangle&) mesh0->tris_[primID0];
+//   auto const & tri1 = (Triangle&) mesh1->tris_[primID1];
+// 
+//   if (geomID0 == geomID1)
+//   {
+//     /* ignore intersection with topological neighbors */
+//     const vint4 t0(tri0.v0,tri0.v1,tri0.v2,tri0.v2);
+//     if (any(vint4(tri1.v0) == t0)) return false;
+//     if (any(vint4(tri1.v1) == t0)) return false;
+//     if (any(vint4(tri1.v2) == t0)) return false;
+//   }
+//   //CSTAT(bvh_collide_prim_intersections3++);
+// 
+//   const Vec3fa a0 = mesh0->x_[tri0.v0];
+//   const Vec3fa a1 = mesh0->x_[tri0.v1];
+//   const Vec3fa a2 = mesh0->x_[tri0.v2];
+//   const Vec3fa b0 = mesh1->x_[tri1.v0];
+//   const Vec3fa b1 = mesh1->x_[tri1.v1];
+//   const Vec3fa b2 = mesh1->x_[tri1.v2];
+// 
+//   return isa::TriangleTriangleIntersector::intersect_triangle_triangle(a0,a1,a2,b0,b1,b2);
+//   return false;
+// }
