@@ -10,6 +10,7 @@ rem SET COMPILER=Visual Studio 17 2022
 
 SET PFX=%~dp0
 SET EMBREE_DIR=%PFX%embree
+SET GLM_DIR=%PFX%glm
 cd /d %PFX%
 rmdir %BUILD% /s /q
 mkdir %BUILD%
@@ -28,6 +29,7 @@ set ADLOC=%MAYALOC%..
 
 
 cmake ^
+    -DGLM_DIR=%GLM_DIR% ^
     -DMAYA_VERSION=%MAYA_VERSION% ^
     -DMAYA_INSTALL_BASE_PATH="%ADLOC%" ^
     -DCMAKE_INSTALL_PREFIX="..\modules" ^
