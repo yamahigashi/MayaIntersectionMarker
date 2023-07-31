@@ -333,12 +333,12 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
         polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
     }
 
-    #pragma omp parallel
+    // #pragma omp parallel
     {
         std::unordered_set<int> intersectedFaceIdsLocalA;
         std::unordered_set<int> intersectedFaceIdsLocalB;
 
-        #pragma omp for
+        // #pragma omp for
         for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
 
             TriangleData triangle;
@@ -363,7 +363,8 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
                     for(int k = 0; k < intersectedTriangles.size(); ++k) {
                             int a = intersectedTriangles[k].faceIndex;
                             int b = polygonIndex;
-                        hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
+                        hit = intersectTriangleTriangle(intersectedTriangles[k], triangle);
+                        // hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
                         // MGlobal::displayInfo(MString("Intersection: ") + std::to_wstring(polygonIndex).c_str() + std::to_wstring(a).c_str() + ":" + std::to_wstring(b).c_str() + " " + std::to_wstring(hit).c_str());
                         if (hit) {
 
@@ -376,7 +377,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
             }
         }
 
-        #pragma omp critical
+        // #pragma omp critical
         {
             intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
             intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
@@ -387,42 +388,43 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 }
 
 
-/// Check if the triangle intersects with the plane
-bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const
-{
-
-    MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-    MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-
-    for (int i = 0; i < 3; ++i) {
-        MPoint edgeStart = triB.vertices[i];
-        MPoint edgeEnd = triB.vertices[(i+1)%3];
-
-        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-            if (isPointInsideTriangle(intersection, triA)) {
-                return true;
-            }
-        }
-    }
-
-    planeNormal = computePlaneNormal(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-    planeOrigin = computePlaneOrigin(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-
-    for (int i = 0; i < 3; ++i) {
-        MPoint edgeStart = triA.vertices[i];
-        MPoint edgeEnd = triA.vertices[(i+1)%3];
-
-        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-            if (isPointInsideTriangle(intersection, triB)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
+// change to use utility.h
+// /// Check if the triangle intersects with the plane
+// bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const
+// {
+// 
+//     MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
+//     MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
+// 
+//     for (int i = 0; i < 3; ++i) {
+//         MPoint edgeStart = triB.vertices[i];
+//         MPoint edgeEnd = triB.vertices[(i+1)%3];
+// 
+//         if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
+//             MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
+//             if (isPointInsideTriangle(intersection, triA)) {
+//                 return true;
+//             }
+//         }
+//     }
+// 
+//     planeNormal = computePlaneNormal(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
+//     planeOrigin = computePlaneOrigin(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
+// 
+//     for (int i = 0; i < 3; ++i) {
+//         MPoint edgeStart = triA.vertices[i];
+//         MPoint edgeEnd = triA.vertices[(i+1)%3];
+// 
+//         if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
+//             MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
+//             if (isPointInsideTriangle(intersection, triB)) {
+//                 return true;
+//             }
+//         }
+//     }
+// 
+//     return false;
+// }
 
 
 std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const

@@ -44,8 +44,8 @@ public:
 private:
     OctreeNode* root;
 
-    void insertTriangle(OctreeNode* node, const TriangleData& triangle, int depth = 0);
-    void clear(OctreeNode* node);
-    bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleData& triangle, bool preciseMode) const;
-    void OctreeKernel::splitNode(OctreeNode* node);
+           void insertTriangle(OctreeNode* node, const TriangleData& triangle, int depth = 0);
+           void clear(OctreeNode* node);
+k2kIntersection intersectKernelKernel(const OctreeKernel& other) const;
+           void splitNode(OctreeNode* node);
 };

@@ -138,7 +138,6 @@ std::shared_ptr<SpatialDivisionKernel> getActiveKernel() const;
             MStatus     getChecksumB(int &outChecksum) const;
       MBoundingBox      getBoundingBox(const MObject &meshObject) const;
            MStatus      createMeshFromTriangles(const MObject& meshAObject, const MIntArray& intersectedTriangleIDs, MFnMesh& outputMeshFn);
-              bool      checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const;
 
              MPlug      meshAPlug() const { return MPlug(thisMObject(), meshA); }
              MPlug      meshBPlug() const { return MPlug(thisMObject(), meshB); }
