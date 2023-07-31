@@ -186,16 +186,24 @@ void OctreeKernel::clear(OctreeNode* node)
 }
 
 
+K2KIntersection OctreeKernel::intersectKernelKernel(
+    SpatialDivisionKernel& otherKernel
+) const {
 
-k2kIntersection OctreeKernel::intersectKernelKernel(const OctreeKernel& other) const
-{
     std::vector<TriangleData> intersectedTriangles;
     std::vector<TriangleData> otherIntersectedTriangles;
 
+    OctreeKernel* other = dynamic_cast<OctreeKernel*>(&otherKernel);
+    if (other == nullptr) {
+        MGlobal::displayError("Cannot intersect octree with other kernel type!");
+        return std::make_pair(intersectedTriangles, otherIntersectedTriangles);
+    }
+
+
     std::queue<std::pair<OctreeNode*, OctreeNode*>> nodesToCheck;
-    
-    if (root != nullptr && other.root != nullptr) {
-        nodesToCheck.push(std::make_pair(root, other.root));
+
+    if (this->root != nullptr && other->root != nullptr) {
+        nodesToCheck.push(std::make_pair(this->root, other->root));
     }
 
     while (!nodesToCheck.empty()) {

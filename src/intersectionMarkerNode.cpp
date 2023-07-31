@@ -266,17 +266,34 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         this->intersectedFaceIdsA.clear();
         this->intersectedFaceIdsB.clear();
 
-        // Build kernel
+        // Build kernel A
         std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
         MBoundingBox bbox = getBoundingBox(meshA);
         bbox.transformUsing(offsetA);
         status = kernel->build(meshAObject, bbox, offsetA);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
-        status = checkIntersections(meshAObject, meshBObject, kernel, offsetB);
-        if(status != MStatus::kSuccess) {
-            MGlobal::displayError("Failed to get offset data handle");
-            return status;
+        // Build kernel B
+        std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
+        bbox = getBoundingBox(meshB);
+        bbox.transformUsing(offsetB);
+        status = kernelB->build(meshBObject, bbox, offsetB.inverse());
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        // check intersections
+
+        // status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
+        // if(status != MStatus::kSuccess) {
+        //     MGlobal::displayError("Failed to get offset data handle");
+        //     return status;
+        // }
+
+        K2KIntersection pairs = kernel->intersectKernelKernel(*kernelB);
+        for (auto pair : pairs.first) {
+            this->intersectedFaceIdsA.insert(pair.faceIndex);
+        }
+        for (auto pair : pairs.second) {
+            this->intersectedFaceIdsB.insert(pair.faceIndex);
         }
 
         // -------------------------------------------------------------------------------------------
@@ -309,80 +326,80 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
     intersectedFaceIdsB.clear();
 
     // Iterate through the polygons in meshB
-    MFnMesh meshBFn(meshBObject);
-    int numPolygons = meshBFn.numPolygons();
-
-    MIntArray triangleCounts;   // number of triangles in each face
-    MIntArray triangleVertices; // The triangle vertex Ids for each triangle
-    MIntArray triangleIndices;  // The index array for each triangle in face vertex space
-    MPointArray vertexPositions;
-
-    meshBFn.getTriangles(triangleCounts, triangleVertices);
-    meshBFn.getTriangleOffsets(triangleCounts, triangleIndices);
-    meshBFn.getPoints(vertexPositions, MSpace::kWorld);
-
-    // Calculate the offset into the triangleVertices array for each polygon
-    MIntArray polygonTriangleOffsets(numPolygons, 0);
-    for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
-        polygonTriangleOffsets[polygonIndex] = polygonTriangleOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1] * 3;
-    }
-
-    // Similarly, calculate the offset into the triangleIndices array for each polygon
-    MIntArray polygonIndexOffsets(numPolygons, 0);
-    for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
-        polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
-    }
+    // MFnMesh meshBFn(meshBObject);
+    // int numPolygons = meshBFn.numPolygons();
+    // 
+    // MIntArray triangleCounts;   // number of triangles in each face
+    // MIntArray triangleVertices; // The triangle vertex Ids for each triangle
+    // MIntArray triangleIndices;  // The index array for each triangle in face vertex space
+    // MPointArray vertexPositions;
+    // 
+    // meshBFn.getTriangles(triangleCounts, triangleVertices);
+    // meshBFn.getTriangleOffsets(triangleCounts, triangleIndices);
+    // meshBFn.getPoints(vertexPositions, MSpace::kWorld);
+    // 
+    // // Calculate the offset into the triangleVertices array for each polygon
+    // MIntArray polygonTriangleOffsets(numPolygons, 0);
+    // for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
+    //     polygonTriangleOffsets[polygonIndex] = polygonTriangleOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1] * 3;
+    // }
+    // 
+    // // Similarly, calculate the offset into the triangleIndices array for each polygon
+    // MIntArray polygonIndexOffsets(numPolygons, 0);
+    // for (int polygonIndex = 1; polygonIndex < numPolygons; polygonIndex++) {
+    //     polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
+    // }
 
     // #pragma omp parallel
-    {
-        std::unordered_set<int> intersectedFaceIdsLocalA;
-        std::unordered_set<int> intersectedFaceIdsLocalB;
-
-        // #pragma omp for
-        for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
-
-            TriangleData triangle;
-            int numTrianglesInPolygon = triangleCounts[polygonIndex];
-            int triangleVerticesOffset = polygonTriangleOffsets[polygonIndex];
-            int triangleIndicesOffset = polygonIndexOffsets[polygonIndex];
-
-            for (int triangleIndex = 0; triangleIndex < numTrianglesInPolygon; triangleIndex++) {
-                // Get the vertex positions of each triangle
-                for (int vertexIndex = 0; vertexIndex < 3; vertexIndex++) {
-                    int vertexId = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + vertexIndex];
-                    triangle.vertices[vertexIndex] = vertexPositions[vertexId] * offset;
-                }
-
-                // Check intersection between triangle and the octree (kernel)
-                std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
-
-
-                // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
-                bool hit = false;
-                if (!intersectedTriangles.empty()) {
-                    for(int k = 0; k < intersectedTriangles.size(); ++k) {
-                            int a = intersectedTriangles[k].faceIndex;
-                            int b = polygonIndex;
-                        hit = intersectTriangleTriangle(intersectedTriangles[k], triangle);
-                        // hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
-                        // MGlobal::displayInfo(MString("Intersection: ") + std::to_wstring(polygonIndex).c_str() + std::to_wstring(a).c_str() + ":" + std::to_wstring(b).c_str() + " " + std::to_wstring(hit).c_str());
-                        if (hit) {
-
-                            // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
-                            intersectedFaceIdsLocalA.insert(a);
-                            intersectedFaceIdsLocalB.insert(b);
-                        }
-                    }
-                }
-            }
-        }
-
-        // #pragma omp critical
-        {
-            intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
-            intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
-        }
-    }
+    // {
+    //     std::unordered_set<int> intersectedFaceIdsLocalA;
+    //     std::unordered_set<int> intersectedFaceIdsLocalB;
+    // 
+    //     #pragma omp for
+    //     for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
+    // 
+    //         TriangleData triangle;
+    //         int numTrianglesInPolygon = triangleCounts[polygonIndex];
+    //         int triangleVerticesOffset = polygonTriangleOffsets[polygonIndex];
+    //         int triangleIndicesOffset = polygonIndexOffsets[polygonIndex];
+    // 
+    //         for (int triangleIndex = 0; triangleIndex < numTrianglesInPolygon; triangleIndex++) {
+    //             // Get the vertex positions of each triangle
+    //             for (int vertexIndex = 0; vertexIndex < 3; vertexIndex++) {
+    //                 int vertexId = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + vertexIndex];
+    //                 triangle.vertices[vertexIndex] = vertexPositions[vertexId] * offset;
+    //             }
+    // 
+    //             // Check intersection between triangle and the octree (kernel)
+    //             std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
+    // 
+    // 
+    //             // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
+    //             bool hit = false;
+    //             if (!intersectedTriangles.empty()) {
+    //                 for(int k = 0; k < intersectedTriangles.size(); ++k) {
+    //                         int a = intersectedTriangles[k].faceIndex;
+    //                         int b = polygonIndex;
+    //                     hit = intersectTriangleTriangle(intersectedTriangles[k], triangle);
+    //                     // hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
+    //                     // MGlobal::displayInfo(MString("Intersection: ") + std::to_wstring(polygonIndex).c_str() + std::to_wstring(a).c_str() + ":" + std::to_wstring(b).c_str() + " " + std::to_wstring(hit).c_str());
+    //                     if (hit) {
+    // 
+    //                         // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
+    //                         intersectedFaceIdsLocalA.insert(a);
+    //                         intersectedFaceIdsLocalB.insert(b);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // 
+    //     #pragma omp critical
+    //     {
+    //         intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
+    //         intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
+    //     }
+    // }
 
     return MStatus::kSuccess;
 }

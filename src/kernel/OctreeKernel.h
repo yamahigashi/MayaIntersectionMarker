@@ -46,6 +46,6 @@ private:
 
            void insertTriangle(OctreeNode* node, const TriangleData& triangle, int depth = 0);
            void clear(OctreeNode* node);
-k2kIntersection intersectKernelKernel(const OctreeKernel& other) const;
+    K2KIntersection intersectKernelKernel(SpatialDivisionKernel& otherKernel) const override;
            void splitNode(OctreeNode* node);
 };

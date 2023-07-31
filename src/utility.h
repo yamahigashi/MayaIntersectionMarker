@@ -585,6 +585,18 @@ static inline bool intersectBoxBox (
     return a.intersects(b);
 }
 
+static inline bool boxContainsAnyVertices (
+    const MBoundingBox& box,
+    const TriangleData& triangle
+) {
+    for (const MPoint& vertex : triangle.vertices) {
+        if (box.contains(vertex)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 static inline bool intersectBoxTriangle (
     const MBoundingBox& box,
@@ -638,15 +650,3 @@ static inline bool intersectBoxTriangle (
 
 }
 
-
-static inline bool boxContainsAnyVertices (
-    const MBoundingBox& box,
-    const TriangleData& triangle
-) {
-    for (const MPoint& vertex : triangle.vertices) {
-        if (box.contains(vertex)) {
-            return true;
-        }
-    }
-    return false;
-}
