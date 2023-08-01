@@ -107,7 +107,7 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
     // collect all triangles
     std::vector<RTCBuildPrimitive> primitives;
     MItMeshPolygon itPoly(meshObject);
-    int i = 0;
+    int primId = 0;
     for(; !itPoly.isDone(); itPoly.next()) {
 
         int numTriangles;
@@ -130,18 +130,13 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
             prim.upper_x = (float)bbox.max().x;
             prim.upper_y = (float)bbox.max().y;
             prim.upper_z = (float)bbox.max().z;
-            prim.primID = i;
+            prim.primID = primId;
             primitives.push_back(prim);
 
-            TriangleData triangle;
-            triangle.vertices[0] = points[0];
-            triangle.vertices[1] = points[1];
-            triangle.vertices[2] = points[2];
-            triangle.faceIndex = itPoly.index();
-            triangle.triangleIndex = triangleId;
+            TriangleData triangle(itPoly.index(), triangleId, points[0], points[1], points[2]);
             this->triangles.push_back(triangle);
 
-            i++;
+            primId++;
         }
     }
 
@@ -199,8 +194,43 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
 
 std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& triangle) const
 {
-    // TODO: Implement Embree querying
-    return std::vector<TriangleData>();
+    std::vector<TriangleData> intersectingA;
+
+    std::stack<Node*> stack;
+    stack.push(root);
+
+    while (!stack.empty()) {
+
+        Node* currentNode = stack.top();
+        stack.pop();
+
+        bool isAInner = currentNode->branch() != nullptr;
+        bool  isALeaf = currentNode->leaf() != nullptr;
+
+        if (isAInner) {
+
+            MBoundingBox bboxL = currentNode->branch()->bounds[0];
+            MBoundingBox bboxR = currentNode->branch()->bounds[1];
+
+            if (intersectBoxBox(bboxL, triangle.bbox)) {
+                stack.push(currentNode->branch()->children[0]);
+            }
+            if (intersectBoxBox(bboxR, triangle.bbox)) {
+                stack.push(currentNode->branch()->children[1]);
+            }
+        }
+
+        if (isALeaf) {
+            int index = currentNode->leaf()->id;
+            TriangleData triangleData = this->triangles[index];
+            if (intersectTriangleTriangle(triangle, triangleData)) {
+                intersectingA.push_back(triangleData);
+            }
+        }
+
+    };
+
+    return intersectingA;
 }
 
 
@@ -209,14 +239,14 @@ K2KIntersection EmbreeKernel::intersectKernelKernel(
     SpatialDivisionKernel& otherKernel
 
 ) const {
-    MGlobal::displayInfo(MString("Intersecting EmbreeKernel with "));
+    // MGlobal::displayInfo(MString("Intersecting EmbreeKernel with "));
 
     std::vector<TriangleData> intersectingA;
     std::vector<TriangleData> intersectingB;
 
     EmbreeKernel* other = dynamic_cast<EmbreeKernel*>(&otherKernel);
     if (!other) {
-        MGlobal::displayError("Failed to cast SpatialDivisionKernel to EmbreeKernel");
+        // MGlobal::displayError("Failed to cast SpatialDivisionKernel to EmbreeKernel");
         return std::make_pair(intersectingA, intersectingB);
     }
 

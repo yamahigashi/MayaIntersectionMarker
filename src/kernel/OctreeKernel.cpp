@@ -40,11 +40,11 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
             MIntArray vertexList;
             itPoly.getTriangle(i, points, vertexList, MSpace::kObject);
 
-            triangle.vertices[0] = points[0] * offsetMatrix;
-            triangle.vertices[1] = points[1] * offsetMatrix;
-            triangle.vertices[2] = points[2] * offsetMatrix;
-            triangle.faceIndex = itPoly.index();
+            MPoint p0 = points[0] * offsetMatrix;
+            MPoint p1 = points[1] * offsetMatrix;
+            MPoint p2 = points[2] * offsetMatrix;
 
+            TriangleData triangle(itPoly.index(), i, p0, p1, p2);
             // Add the triangle to the octree
             insertTriangle(root, triangle, 0);
         }
@@ -149,11 +149,11 @@ std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& tri
             if (currentNode->isLeaf()) {
                 // If the current node is a leaf and its bounding box intersects with the triangle,
                 // then all its triangles are considered as intersected triangles
-                std::copy(
-                    currentNode->triangles.begin(),
-                    currentNode->triangles.end(),
-                    std::back_inserter(intersectedTriangles)
-                );
+                for (const TriangleData& triangle : currentNode->triangles) {
+                    if (intersectTriangleTriangle(triangle, triangle)) {
+                        intersectedTriangles.push_back(triangle);
+                    }
+                }
             } else {
                 // If the current node is a leaf and its bounding box intersects with the triangle,
                 // If the current node is not a leaf, then check its children

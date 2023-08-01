@@ -40,6 +40,20 @@ struct TriangleData
     int faceIndex;
     int triangleIndex;
     MPoint vertices[3];
+    MBoundingBox bbox;
+
+    TriangleData() = default;
+    TriangleData(int faceIndex, int triangleIndex, MPoint v0, MPoint v1, MPoint v2)
+        : faceIndex(faceIndex), triangleIndex(triangleIndex)
+    {
+        vertices[0] = v0;
+        vertices[1] = v1;
+        vertices[2] = v2;
+
+        bbox.expand(v0);
+        bbox.expand(v1);
+        bbox.expand(v2);
+    }
 };
 
 struct BoundingBox1D
