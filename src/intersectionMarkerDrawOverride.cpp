@@ -99,7 +99,7 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     status = node->getChecksumB(checkSumB);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: getChecksumB failed");
     int newChecksum = checkSumA ^ checkSumB;
-    if (newChecksum == prevChecksum) {
+    if (newChecksum > 0 && newChecksum == prevChecksum) {
         return data;
     }
 
