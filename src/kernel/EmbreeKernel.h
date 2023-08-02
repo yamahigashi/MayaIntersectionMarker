@@ -105,19 +105,26 @@ using TriangleStorage = std::vector<TriangleData>;
 class EmbreeKernel : public SpatialDivisionKernel
 {
 public:
-                              ~EmbreeKernel() override {};  // FIXME: release Embree resources
+    ~EmbreeKernel() override
+    {
+        if (this->bvh) {
+            rtcReleaseBVH(this->bvh);
+        }
+        if (this->device) {
+            rtcReleaseDevice(this->device);
+        }
+    }
+
 
                       MStatus build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix) override;
     std::vector<TriangleData> queryIntersected(const TriangleData& triangle) const override;
               K2KIntersection intersectKernelKernel(SpatialDivisionKernel& otherKernel) const;
 
 private:
-       RTCScene scene;
          RTCBVH bvh;
       RTCDevice device;
            Node *root;
             int bvhDepth;
 TriangleStorage triangles;
-       // IDMapper primIDToFaceTriID;
 
 };

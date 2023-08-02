@@ -94,7 +94,6 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
 
     rtcSetDeviceErrorFunction(this->device, errorHandler, nullptr);
 
-    // this->scene = rtcNewScene(rtcDevice);
     this->bvh = rtcNewBVH(this->device);
     if (!this->bvh) {
         MGlobal::displayError("Failed to create Embree BVH");
@@ -117,23 +116,24 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
             MPointArray points;
             MIntArray vertexList;
             itPoly.getTriangle(triangleId, points, vertexList, MSpace::kObject);
-            MBoundingBox bbox;
-            bbox.expand(points[0]);
-            bbox.expand(points[1]);
-            bbox.expand(points[2]);
+            TriangleData triangle(
+                    itPoly.index(),
+                    triangleId,
+                    points[0] * offsetMatrix,
+                    points[1] * offsetMatrix,
+                    points[2] * offsetMatrix);
 
             RTCBuildPrimitive prim;
-            prim.lower_x = (float)bbox.min().x;
-            prim.lower_y = (float)bbox.min().y;
-            prim.lower_z = (float)bbox.min().z;
+            prim.lower_x = (float)triangle.bbox.min().x;
+            prim.lower_y = (float)triangle.bbox.min().y;
+            prim.lower_z = (float)triangle.bbox.min().z;
             prim.geomID = 0;
-            prim.upper_x = (float)bbox.max().x;
-            prim.upper_y = (float)bbox.max().y;
-            prim.upper_z = (float)bbox.max().z;
+            prim.upper_x = (float)triangle.bbox.max().x;
+            prim.upper_y = (float)triangle.bbox.max().y;
+            prim.upper_z = (float)triangle.bbox.max().z;
             prim.primID = primId;
             primitives.push_back(prim);
 
-            TriangleData triangle(itPoly.index(), triangleId, points[0], points[1], points[2]);
             this->triangles.push_back(triangle);
 
             primId++;
@@ -171,21 +171,6 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
         MGlobal::displayError("Failed to build Embree BVH");
         return MStatus::kFailure;
     }
-
-    // for (size_t i=0; i<10; i++)
-    // {
-    //     /* we recreate the prims array here, as the builders modify this array */
-    //     for (size_t j=0; j<prims.size(); j++) prims[j] = prims_i[j];
-    // 
-    //     std::cout << "iteration " << i << ": building BVH over " << prims.size() << " primitives, " << std::flush;
-    //     double t0 = getSeconds();
-    //     Node* root = (Node*) rtcBuildBVH(&arguments);
-    //     double t1 = getSeconds();
-    //     const float sah = root ? root->sah() : 0.0f;
-    //     std::cout << 1000.0f*(t1-t0) << "ms, " << 1E-6*double(prims.size())/(t1-t0) << " Mprims/s, sah = " << sah << " [DONE]" << std::endl;
-    // }
-    // 
-    // rtcReleaseBVH(bvh);
 
     return MStatus::kSuccess;
 }

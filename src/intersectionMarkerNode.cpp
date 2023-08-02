@@ -120,9 +120,9 @@ MStatus IntersectionMarkerNode::initialize()
     // Initialize Kernel
     kernelType = eAttr.create(KERNEL, KERNEL, 0, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
-    eAttr.addField("Octree", 0);
-    eAttr.addField("KDTree", 1);
-    eAttr.addField("Embree", 2);
+    eAttr.addField("BVH", 0);
+    eAttr.addField("Octree", 1);
+    eAttr.addField("KDTree", 2);
     status = addAttribute(kernelType);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -273,13 +273,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         status = kernelA->build(meshAObject, bbox, offsetA);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
-        // Build kernel B
-        std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
-        bbox = getBoundingBox(meshB);
-        bbox.transformUsing(offsetB);
-        status = kernelB->build(meshBObject, bbox, offsetB.inverse());
-        CHECK_MSTATUS_AND_RETURN_IT(status);
-
         // check intersections
 
         status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
@@ -287,6 +280,13 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
             MGlobal::displayError("Failed to get offset data handle");
             return status;
         }
+
+        // Build kernel B
+        // std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
+        // bbox = getBoundingBox(meshB);
+        // bbox.transformUsing(offsetB);
+        // status = kernelB->build(meshBObject, bbox, offsetB.inverse());
+        // CHECK_MSTATUS_AND_RETURN_IT(status);
 
         // K2KIntersection pairs = kernel->intersectKernelKernel(*kernelB);
         // for (auto pair : pairs.first) {
@@ -406,45 +406,6 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 }
 
 
-// change to use utility.h
-// /// Check if the triangle intersects with the plane
-// bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const
-// {
-// 
-//     MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-//     MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-// 
-//     for (int i = 0; i < 3; ++i) {
-//         MPoint edgeStart = triB.vertices[i];
-//         MPoint edgeEnd = triB.vertices[(i+1)%3];
-// 
-//         if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-//             MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-//             if (isPointInsideTriangle(intersection, triA)) {
-//                 return true;
-//             }
-//         }
-//     }
-// 
-//     planeNormal = computePlaneNormal(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-//     planeOrigin = computePlaneOrigin(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-// 
-//     for (int i = 0; i < 3; ++i) {
-//         MPoint edgeStart = triA.vertices[i];
-//         MPoint edgeEnd = triA.vertices[(i+1)%3];
-// 
-//         if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-//             MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-//             if (isPointInsideTriangle(intersection, triB)) {
-//                 return true;
-//             }
-//         }
-//     }
-// 
-//     return false;
-// }
-
-
 std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const
 {
     // Get the value of the 'kernel' attribute
@@ -454,12 +415,12 @@ std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel()
 
     // Create the appropriate kernel based on the attribute value
     switch (kernelValue) {
-    case 0: // Octree
-        return std::make_unique<OctreeKernel>();
-    case 1: // KDTree
-        return std::make_unique<KDTreeKernel>();
-    case 2: // Embree
+    case 0: // Embree
         return std::make_unique<EmbreeKernel>();
+    case 1: // Octree
+        return std::make_unique<OctreeKernel>();
+    case 2: // KDTree
+        return std::make_unique<KDTreeKernel>();
     default:
         return nullptr;
     }
