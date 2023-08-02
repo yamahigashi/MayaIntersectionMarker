@@ -120,9 +120,9 @@ MStatus IntersectionMarkerNode::initialize()
     // Initialize Kernel
     kernelType = eAttr.create(KERNEL, KERNEL, 0, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
-    eAttr.addField("Octree", 0);
-    eAttr.addField("KDTree", 1);
-    eAttr.addField("Embree", 2);
+    eAttr.addField("BVH", 0);
+    eAttr.addField("Octree", 1);
+    eAttr.addField("KDTree", 2);
     status = addAttribute(kernelType);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -266,18 +266,35 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         this->intersectedFaceIdsA.clear();
         this->intersectedFaceIdsB.clear();
 
-        // Build kernel
-        std::shared_ptr<SpatialDivisionKernel> kernel = getActiveKernel();
+        // Build kernel A
+        std::shared_ptr<SpatialDivisionKernel> kernelA = getActiveKernel();
         MBoundingBox bbox = getBoundingBox(meshA);
         bbox.transformUsing(offsetA);
-        status = kernel->build(meshAObject, bbox, offsetA);
+        status = kernelA->build(meshAObject, bbox, offsetA);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
-        status = checkIntersections(meshAObject, meshBObject, kernel, offsetB);
+        // check intersections
+
+        status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
         if(status != MStatus::kSuccess) {
             MGlobal::displayError("Failed to get offset data handle");
             return status;
         }
+
+        // Build kernel B
+        // std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
+        // bbox = getBoundingBox(meshB);
+        // bbox.transformUsing(offsetB);
+        // status = kernelB->build(meshBObject, bbox, offsetB.inverse());
+        // CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        // K2KIntersection pairs = kernel->intersectKernelKernel(*kernelB);
+        // for (auto pair : pairs.first) {
+        //     this->intersectedFaceIdsA.insert(pair.faceIndex);
+        // }
+        // for (auto pair : pairs.second) {
+        //     this->intersectedFaceIdsB.insert(pair.faceIndex);
+        // }
 
         // -------------------------------------------------------------------------------------------
         // Store the result in the cache
@@ -348,23 +365,25 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 
             for (int triangleIndex = 0; triangleIndex < numTrianglesInPolygon; triangleIndex++) {
                 // Get the vertex positions of each triangle
-                for (int vertexIndex = 0; vertexIndex < 3; vertexIndex++) {
-                    int vertexId = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + vertexIndex];
-                    triangle.vertices[vertexIndex] = vertexPositions[vertexId] * offset;
-                }
+
+                int vertexId0 = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + 0];
+                int vertexId1 = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + 1];
+                int vertexId2 = triangleVertices[triangleVerticesOffset + triangleIndex * 3 + 2];
+                MPoint p0 = vertexPositions[vertexId0] * offset;
+                MPoint p1 = vertexPositions[vertexId1] * offset;
+                MPoint p2 = vertexPositions[vertexId2] * offset;
+                TriangleData triangle(polygonIndex, triangleIndex, p0, p1, p2);
 
                 // Check intersection between triangle and the octree (kernel)
                 std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
-
 
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 bool hit = false;
                 if (!intersectedTriangles.empty()) {
                     for(int k = 0; k < intersectedTriangles.size(); ++k) {
-                            int a = intersectedTriangles[k].faceIndex;
-                            int b = polygonIndex;
-                        hit = checkIntersectionsDetailed(intersectedTriangles[k], triangle);
-                        // MGlobal::displayInfo(MString("Intersection: ") + std::to_wstring(polygonIndex).c_str() + std::to_wstring(a).c_str() + ":" + std::to_wstring(b).c_str() + " " + std::to_wstring(hit).c_str());
+                        int a = intersectedTriangles[k].faceIndex;
+                        int b = polygonIndex;
+                        hit = intersectTriangleTriangle(intersectedTriangles[k], triangle);
                         if (hit) {
 
                             // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
@@ -387,44 +406,6 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
 }
 
 
-/// Check if the triangle intersects with the plane
-bool IntersectionMarkerNode::checkIntersectionsDetailed(const TriangleData triA, const TriangleData triB) const
-{
-
-    MVector planeNormal = computePlaneNormal(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-    MVector planeOrigin = computePlaneOrigin(triA.vertices[0], triA.vertices[1], triA.vertices[2]);
-
-    for (int i = 0; i < 3; ++i) {
-        MPoint edgeStart = triB.vertices[i];
-        MPoint edgeEnd = triB.vertices[(i+1)%3];
-
-        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-            if (isPointInsideTriangle(intersection, triA)) {
-                return true;
-            }
-        }
-    }
-
-    planeNormal = computePlaneNormal(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-    planeOrigin = computePlaneOrigin(triB.vertices[0], triB.vertices[1], triB.vertices[2]);
-
-    for (int i = 0; i < 3; ++i) {
-        MPoint edgeStart = triA.vertices[i];
-        MPoint edgeEnd = triA.vertices[(i+1)%3];
-
-        if (isEdgeIntersectingPlane(planeNormal, planeOrigin, edgeStart, edgeEnd)) {
-            MPoint intersection = computeEdgePlaneIntersection(planeNormal, planeOrigin, edgeStart, edgeEnd);
-            if (isPointInsideTriangle(intersection, triB)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-
 std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel() const
 {
     // Get the value of the 'kernel' attribute
@@ -434,12 +415,12 @@ std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel()
 
     // Create the appropriate kernel based on the attribute value
     switch (kernelValue) {
-    case 0: // Octree
-        return std::make_unique<OctreeKernel>();
-    case 1: // KDTree
-        return std::make_unique<KDTreeKernel>();
-    case 2: // Embree
+    case 0: // Embree
         return std::make_unique<EmbreeKernel>();
+    case 1: // Octree
+        return std::make_unique<OctreeKernel>();
+    case 2: // KDTree
+        return std::make_unique<KDTreeKernel>();
     default:
         return nullptr;
     }

@@ -40,11 +40,11 @@ MStatus OctreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
             MIntArray vertexList;
             itPoly.getTriangle(i, points, vertexList, MSpace::kObject);
 
-            triangle.vertices[0] = points[0] * offsetMatrix;
-            triangle.vertices[1] = points[1] * offsetMatrix;
-            triangle.vertices[2] = points[2] * offsetMatrix;
-            triangle.faceIndex = itPoly.index();
+            MPoint p0 = points[0] * offsetMatrix;
+            MPoint p1 = points[1] * offsetMatrix;
+            MPoint p2 = points[2] * offsetMatrix;
 
+            TriangleData triangle(itPoly.index(), i, p0, p1, p2);
             // Add the triangle to the octree
             insertTriangle(root, triangle, 0);
         }
@@ -80,7 +80,7 @@ void OctreeKernel::insertTriangle(OctreeNode* node, const TriangleData& triangle
         // If this is not a leaf node, try to add the triangle to its children
         bool inserted = false;
         for (int i = 0; i < 8; ++i) {
-            if (node->children[i] != nullptr && boxTriangleIntersect(node->children[i]->boundingBox, triangle, false)) {
+            if (node->children[i] != nullptr && boxContainsAnyVertices(node->children[i]->boundingBox, triangle)) {
                 insertTriangle(node->children[i], triangle , depth + 1);
                 inserted = true;
             }
@@ -121,7 +121,7 @@ void OctreeKernel::splitNode(OctreeNode* node)
     // Move triangles to child nodes
     for (const TriangleData& triangle : node->triangles) {
         for (int i = 0; i < 8; ++i) {
-            if (boxTriangleIntersect(boxes[i], triangle, false)) {
+            if (boxContainsAnyVertices(boxes[i], triangle)) {
                 node->children[i]->triangles.push_back(triangle);
             }
         }
@@ -145,15 +145,15 @@ std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& tri
         OctreeNode* currentNode = nodesToCheck.front();
         nodesToCheck.pop();
 
-        if (boxTriangleIntersect(currentNode->boundingBox, triangle, true)) {
+        if (intersectBoxTriangle(currentNode->boundingBox, triangle)) {
             if (currentNode->isLeaf()) {
                 // If the current node is a leaf and its bounding box intersects with the triangle,
                 // then all its triangles are considered as intersected triangles
-                std::copy(
-                    currentNode->triangles.begin(),
-                    currentNode->triangles.end(),
-                    std::back_inserter(intersectedTriangles)
-                );
+                for (const TriangleData& triangle : currentNode->triangles) {
+                    if (intersectTriangleTriangle(triangle, triangle)) {
+                        intersectedTriangles.push_back(triangle);
+                    }
+                }
             } else {
                 // If the current node is a leaf and its bounding box intersects with the triangle,
                 // If the current node is not a leaf, then check its children
@@ -186,52 +186,54 @@ void OctreeKernel::clear(OctreeNode* node)
 }
 
 
-bool OctreeKernel::boxTriangleIntersect(const MBoundingBox& box, const TriangleData& triangle, bool preciseMode) const
-{
-    for (const MPoint& vertex : triangle.vertices) {
-        if (box.contains(vertex)) {
-            return true;
+K2KIntersection OctreeKernel::intersectKernelKernel(
+    SpatialDivisionKernel& otherKernel
+) const {
+
+    std::vector<TriangleData> intersectedTriangles;
+    std::vector<TriangleData> otherIntersectedTriangles;
+
+    OctreeKernel* other = dynamic_cast<OctreeKernel*>(&otherKernel);
+    if (other == nullptr) {
+        MGlobal::displayError("Cannot intersect octree with other kernel type!");
+        return std::make_pair(intersectedTriangles, otherIntersectedTriangles);
+    }
+
+
+    std::queue<std::pair<OctreeNode*, OctreeNode*>> nodesToCheck;
+
+    if (this->root != nullptr && other->root != nullptr) {
+        nodesToCheck.push(std::make_pair(this->root, other->root));
+    }
+
+    while (!nodesToCheck.empty()) {
+        std::pair<OctreeNode*, OctreeNode*> currentNodes = nodesToCheck.front();
+        nodesToCheck.pop();
+
+        if (currentNodes.first->boundingBox.intersects(currentNodes.second->boundingBox)) {
+            if (currentNodes.first->isLeaf() && currentNodes.second->isLeaf()) {
+                // If both nodes are leaves and their bounding boxes intersect,
+                // then all their triangles are considered as intersected triangles
+                std::copy(
+                    currentNodes.first->triangles.begin(),
+                    currentNodes.first->triangles.end(),
+                    std::back_inserter(intersectedTriangles)
+                );
+                std::copy(
+                    currentNodes.second->triangles.begin(),
+                    currentNodes.second->triangles.end(),
+                    std::back_inserter(otherIntersectedTriangles)
+                );
+            } else {
+                // If one of the nodes is not a leaf, then check its children
+                for (int i = 0; i < 8; ++i) {
+                    if (currentNodes.first->children[i] != nullptr && currentNodes.second->children[i] != nullptr) {
+                        nodesToCheck.push(std::make_pair(currentNodes.first->children[i], currentNodes.second->children[i]));
+                    }
+                }
+            }
         }
     }
 
-    if (!preciseMode) {
-        return false;
-    }
-
-    // Create a bounding box for the triangle
-    MBoundingBox triangleBox;
-    triangleBox.expand(triangle.vertices[0]);
-    triangleBox.expand(triangle.vertices[1]);
-    triangleBox.expand(triangle.vertices[2]);
-
-    // MGlobal::displayInfo(
-    //         MString("A: boundingbox\n") + 
-    //         std::to_wstring(box.center().x).c_str() + ", " +
-    //         std::to_wstring(box.center().y).c_str() + ", " +
-    //         std::to_wstring(box.center().z).c_str() + "\n" +
-    //         std::to_wstring(box.width()).c_str() + ", " +
-    //         std::to_wstring(box.height()).c_str() + ", " +
-    //         std::to_wstring(box.depth()).c_str() + "\n"
-    //     );
-    // 
-    // MGlobal::displayInfo(
-    //         MString("B: boundingbox\n") + 
-    //         std::to_wstring(triangleBox.center().x).c_str() + ", " +
-    //         std::to_wstring(triangleBox.center().y).c_str() + ", " +
-    //         std::to_wstring(triangleBox.center().z).c_str() + "\n" +
-    //         std::to_wstring(triangleBox.width()).c_str() + ", " +
-    //         std::to_wstring(triangleBox.height()).c_str() + ", " +
-    //         std::to_wstring(triangleBox.depth()).c_str() + "\n"
-    // );
-
-
-    // Check if the triangle's bounding box intersects with the given box
-    if (box.intersects(triangleBox)) {
-        return true;
-    }
-
-    // Note: This function might fail to detect intersections where the triangle
-    // penetrates the box but none of the triangle's vertices are contained within the box.
-    return false;
-
+    return std::make_pair(intersectedTriangles, otherIntersectedTriangles);
 }

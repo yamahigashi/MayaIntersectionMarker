@@ -1,5 +1,7 @@
 #include "EmbreeKernel.h"
+#include "../utility.h"
 
+#include <glm/glm.hpp>
 #include <embree4/rtcore.h>
 #include <embree4/rtcore_geometry.h>
 #include <embree4/rtcore_scene.h>
@@ -16,10 +18,11 @@
 #include <maya/MGlobal.h>
 #include <maya/MStatus.h>
 
-
+#include <stack>
 #include <queue>
 #include <vector>
-
+#include <cstdint>
+#include <functional>
 #include <cassert>
 
 
@@ -91,45 +94,51 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
 
     rtcSetDeviceErrorFunction(this->device, errorHandler, nullptr);
 
-    // RTCScene scene = rtcNewScene(rtcDevice);
-
     this->bvh = rtcNewBVH(this->device);
     if (!this->bvh) {
         MGlobal::displayError("Failed to create Embree BVH");
         return MStatus::kFailure;
     }
 
+    // store the PrimID to face id and triangle id mapping
+    this->triangles.clear();
+
     // collect all triangles
     std::vector<RTCBuildPrimitive> primitives;
     MItMeshPolygon itPoly(meshObject);
+    int primId = 0;
     for(; !itPoly.isDone(); itPoly.next()) {
 
         int numTriangles;
         itPoly.numTriangles(numTriangles);
 
-        for (int i=0; i < numTriangles; ++i) {
+        for (int triangleId=0; triangleId < numTriangles; ++triangleId) {
             MPointArray points;
             MIntArray vertexList;
-            itPoly.getTriangle(i, points, vertexList, MSpace::kObject);
-            MBoundingBox bbox;
-            bbox.expand(points[0]);
-            bbox.expand(points[1]);
-            bbox.expand(points[2]);
+            itPoly.getTriangle(triangleId, points, vertexList, MSpace::kObject);
+            TriangleData triangle(
+                    itPoly.index(),
+                    triangleId,
+                    points[0] * offsetMatrix,
+                    points[1] * offsetMatrix,
+                    points[2] * offsetMatrix);
 
             RTCBuildPrimitive prim;
-            prim.lower_x = bbox.min().x;
-            prim.lower_y = bbox.min().y;
-            prim.lower_z = bbox.min().z;
+            prim.lower_x = (float)triangle.bbox.min().x;
+            prim.lower_y = (float)triangle.bbox.min().y;
+            prim.lower_z = (float)triangle.bbox.min().z;
             prim.geomID = 0;
-            prim.upper_x = bbox.max().x;
-            prim.upper_y = bbox.max().y;
-            prim.upper_z = bbox.max().z;
-            prim.primID = i;
+            prim.upper_x = (float)triangle.bbox.max().x;
+            prim.upper_y = (float)triangle.bbox.max().y;
+            prim.upper_z = (float)triangle.bbox.max().z;
+            prim.primID = primId;
             primitives.push_back(prim);
+
+            this->triangles.push_back(triangle);
+
+            primId++;
         }
     }
-
-    MGlobal::displayInfo(MString("Number of primitives: ") + std::to_wstring(primitives.size()).c_str());
 
     // Build BVH
     RTCBuildArguments arguments = rtcDefaultBuildArguments();
@@ -163,65 +172,142 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
         return MStatus::kFailure;
     }
 
-    // for (size_t i=0; i<10; i++)
-    // {
-    //     /* we recreate the prims array here, as the builders modify this array */
-    //     for (size_t j=0; j<prims.size(); j++) prims[j] = prims_i[j];
-    // 
-    //     std::cout << "iteration " << i << ": building BVH over " << prims.size() << " primitives, " << std::flush;
-    //     double t0 = getSeconds();
-    //     Node* root = (Node*) rtcBuildBVH(&arguments);
-    //     double t1 = getSeconds();
-    //     const float sah = root ? root->sah() : 0.0f;
-    //     std::cout << 1000.0f*(t1-t0) << "ms, " << 1E-6*double(prims.size())/(t1-t0) << " Mprims/s, sah = " << sah << " [DONE]" << std::endl;
-    // }
-    // 
-    // rtcReleaseBVH(bvh);
-
     return MStatus::kSuccess;
 }
 
 
 
-
 std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& triangle) const
 {
-    // TODO: Implement Embree querying
-    return std::vector<TriangleData>();
+    std::vector<TriangleData> intersectingA;
+
+    std::stack<Node*> stack;
+    stack.push(root);
+
+    while (!stack.empty()) {
+
+        Node* currentNode = stack.top();
+        stack.pop();
+
+        bool isAInner = currentNode->branch() != nullptr;
+        bool  isALeaf = currentNode->leaf() != nullptr;
+
+        if (isAInner) {
+
+            MBoundingBox bboxL = currentNode->branch()->bounds[0];
+            MBoundingBox bboxR = currentNode->branch()->bounds[1];
+
+            if (intersectBoxBox(bboxL, triangle.bbox)) {
+                stack.push(currentNode->branch()->children[0]);
+            }
+            if (intersectBoxBox(bboxR, triangle.bbox)) {
+                stack.push(currentNode->branch()->children[1]);
+            }
+        }
+
+        if (isALeaf) {
+            int index = currentNode->leaf()->id;
+            TriangleData triangleData = this->triangles[index];
+            if (intersectTriangleTriangle(triangle, triangleData)) {
+                intersectingA.push_back(triangleData);
+            }
+        }
+
+    };
+
+    return intersectingA;
 }
 
-// bool EmbreeKernel::intersectTriangleTriangle(unsigned geomID0, unsigned primID0, unsigned geomID1, unsigned primID1)
-// {
-//   //CSTAT(bvh_collide_prim_intersections1++);
-// 
-//   /* special culling for scene intersection with itself */
-//   if (geomID0 == geomID1 && primID0 == primID1) {
-//     return false;
-//   }
-//   //CSTAT(bvh_collide_prim_intersections2++);
-// 
-//   auto mesh0 = meshes[geomID0].get ();
-//   auto mesh1 = meshes[geomID1].get ();
-//   auto const & tri0 = (Triangle&) mesh0->tris_[primID0];
-//   auto const & tri1 = (Triangle&) mesh1->tris_[primID1];
-// 
-//   if (geomID0 == geomID1)
-//   {
-//     /* ignore intersection with topological neighbors */
-//     const vint4 t0(tri0.v0,tri0.v1,tri0.v2,tri0.v2);
-//     if (any(vint4(tri1.v0) == t0)) return false;
-//     if (any(vint4(tri1.v1) == t0)) return false;
-//     if (any(vint4(tri1.v2) == t0)) return false;
-//   }
-//   //CSTAT(bvh_collide_prim_intersections3++);
-// 
-//   const Vec3fa a0 = mesh0->x_[tri0.v0];
-//   const Vec3fa a1 = mesh0->x_[tri0.v1];
-//   const Vec3fa a2 = mesh0->x_[tri0.v2];
-//   const Vec3fa b0 = mesh1->x_[tri1.v0];
-//   const Vec3fa b1 = mesh1->x_[tri1.v1];
-//   const Vec3fa b2 = mesh1->x_[tri1.v2];
-// 
-//   return isa::TriangleTriangleIntersector::intersect_triangle_triangle(a0,a1,a2,b0,b1,b2);
-//   return false;
-// }
+
+K2KIntersection EmbreeKernel::intersectKernelKernel(
+
+    SpatialDivisionKernel& otherKernel
+
+) const {
+    // MGlobal::displayInfo(MString("Intersecting EmbreeKernel with "));
+
+    std::vector<TriangleData> intersectingA;
+    std::vector<TriangleData> intersectingB;
+
+    EmbreeKernel* other = dynamic_cast<EmbreeKernel*>(&otherKernel);
+    if (!other) {
+        // MGlobal::displayError("Failed to cast SpatialDivisionKernel to EmbreeKernel");
+        return std::make_pair(intersectingA, intersectingB);
+    }
+
+    // FIXME: change this to stackless traversal
+    // // Start with root nodes of both BVHs
+    // std::stack<NodePair> stack;
+    // stack.push({root, other->root});
+    // 
+    // while (!stack.empty()) {
+    // 
+    //     NodePair currentPair = stack.top();
+    //     stack.pop();
+    // 
+    //     // Cast the base Node type to their respective subtypes
+    //     bool isAInner = currentPair.nodeA->branch() != nullptr;
+    //     bool isBInner = currentPair.nodeB->branch() != nullptr;
+    //     bool isALeaf  = currentPair.nodeA->leaf()   != nullptr;
+    //     bool isBLeaf  = currentPair.nodeB->leaf()   != nullptr;
+    // 
+    //     Node *nodeA = currentPair.nodeA;
+    //     Node *nodeB = currentPair.nodeB;
+    // 
+    //     // Iterate over the bounds of each node and check for intersections
+    //     bool anyIntersected = false;
+    //     for (int i = 0; i < 2; ++i)  {
+    //         if (anyIntersected){ break; }
+    // 
+    //         // Assign the bounds for A and B depending on their type
+    //         MBoundingBox bboxA, bboxB;
+    //         if      (isAInner){ bboxA = nodeA->branch()->bounds[i]; }
+    //         else if  (isALeaf){ bboxA = nodeA->leaf()->bounds; }
+    //         else { throw std::runtime_error("Node A is neither a leaf nor an inner node"); }
+    // 
+    //         for (int j = 0; j < 2; ++j) {
+    //             if      (isBInner){ bboxB = nodeB->branch()->bounds[i]; }
+    //             else if  (isBLeaf){ bboxB = nodeB->leaf()->bounds; }
+    //             else throw std::runtime_error("Node B is neither a leaf nor an inner node");
+    // 
+    //             // Check if the bounds intersect
+    //             if (intersectBoxBox(bboxA, bboxB)) {
+    //                 anyIntersected = true;
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // 
+    //     // Skip if bounding boxes of current nodes do not intersect
+    //     if (!anyIntersected) {
+    //         continue;
+    //     }
+    // 
+    //     if (isALeaf && isBLeaf) {
+    //         LeafNode* leafNodeA = nodeA->leaf();
+    //         LeafNode* leafNodeB = nodeB->leaf();
+    // 
+    //         intersectingA.push_back( this->triangles[leafNodeA->id]);
+    //         intersectingB.push_back(other->triangles[leafNodeB->id]);
+    // 
+    //     } else {
+    //         // If one or both nodes are not leaves, push their children onto the stack
+    //         if (isAInner) {
+    //             InnerNode* innerNodeA = nodeA->branch();
+    //             for (Node* child : nodeA->branch()->children) {
+    //                 stack.push({child, nodeB});
+    //             }
+    // 
+    //         }
+    //         if (isBInner) {
+    //             InnerNode* innerNodeB = nodeB->branch();
+    // 
+    //             for (Node* child : nodeB->branch()->children) {
+    //                 stack.push({nodeA, child});
+    //             }
+    //         }
+    //     }
+    // }
+
+    return std::make_pair(intersectingA, intersectingB);
+}
