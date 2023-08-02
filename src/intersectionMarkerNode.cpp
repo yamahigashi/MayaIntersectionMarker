@@ -350,12 +350,12 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
         polygonIndexOffsets[polygonIndex] = polygonIndexOffsets[polygonIndex - 1] + triangleCounts[polygonIndex - 1];
     }
 
-    #pragma omp parallel
+    // #pragma omp parallel
     {
         std::unordered_set<int> intersectedFaceIdsLocalA;
         std::unordered_set<int> intersectedFaceIdsLocalB;
 
-        #pragma omp for
+        // #pragma omp for
         for (int polygonIndex = 0; polygonIndex < numPolygons; polygonIndex++) {
 
             TriangleData triangle;
@@ -378,24 +378,18 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
                 std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
 
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
-                bool hit = false;
                 if (!intersectedTriangles.empty()) {
                     for(int k = 0; k < intersectedTriangles.size(); ++k) {
                         int a = intersectedTriangles[k].faceIndex;
                         int b = polygonIndex;
-                        hit = intersectTriangleTriangle(intersectedTriangles[k], triangle);
-                        if (hit) {
-
-                            // MGlobal::displayInfo(MString("Intersection: ") + a + " " + b);
-                            intersectedFaceIdsLocalA.insert(a);
-                            intersectedFaceIdsLocalB.insert(b);
-                        }
+                        intersectedFaceIdsLocalA.insert(a);
+                        intersectedFaceIdsLocalB.insert(b);
                     }
                 }
             }
         }
 
-        #pragma omp critical
+        // #pragma omp critical
         {
             intersectedFaceIdsA.insert(intersectedFaceIdsLocalA.begin(), intersectedFaceIdsLocalA.end());
             intersectedFaceIdsB.insert(intersectedFaceIdsLocalB.begin(), intersectedFaceIdsLocalB.end());
