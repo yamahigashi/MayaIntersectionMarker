@@ -55,7 +55,7 @@ MSyntax IntersectionMarkerCommand::getSyntax()
 
 MStatus IntersectionMarkerCommand::doIt(const MArgList& argList)
 {
-    MGlobal::displayInfo("IntersectionMarkerCommand::doIt");
+    // MGlobal::displayInfo("IntersectionMarkerCommand::doIt");
     MStatus status;
     MArgDatabase argsData(syntax(), argList);
 

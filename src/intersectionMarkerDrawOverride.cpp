@@ -74,7 +74,6 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
 {
     MStatus status;
 
-    // MGlobal::displayInfo("prepareForDraw");
     IntersectionMarkerData* data = dynamic_cast<IntersectionMarkerData*>(oldData);
     if (!data) {
         data = new IntersectionMarkerData();
@@ -90,7 +89,6 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     // Get the node and mesh data
     const IntersectionMarkerNode* node = (const IntersectionMarkerNode*)depNodeFn.userNode();
     if (!node) {
-        MGlobal::displayInfo(MString("prepareForDraw: locnode is null: real type: ") + depNodeFn.typeName());
         return data;
     }
 
@@ -101,7 +99,7 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     status = node->getChecksumB(checkSumB);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: getChecksumB failed");
     int newChecksum = checkSumA ^ checkSumB;
-    if (newChecksum == prevChecksum) {
+    if (newChecksum > 0 && newChecksum == prevChecksum) {
         return data;
     }
 

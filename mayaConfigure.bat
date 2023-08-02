@@ -9,8 +9,8 @@ rem SET COMPILER=Visual Studio 17 2022
 
 
 SET PFX=%~dp0
-SET EMBREE_DIR=%PFX%embree
-SET GLM_DIR=%PFX%glm
+SET EMBREE_DIR=%PFX%lib\embree
+SET GLM_DIR=%PFX%lib\glm
 cd /d %PFX%
 rmdir %BUILD% /s /q
 mkdir %BUILD%

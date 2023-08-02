@@ -12,7 +12,12 @@
 class IntersectionMarkerData : public MUserData
 {
 public:
-    IntersectionMarkerData() : MUserData() {} // Don't delete after draw
+
+#if MAYA_API_VERSION < 20220000
+     IntersectionMarkerData() : MUserData(/* deleteAfterUse */ false) {}
+#else
+     IntersectionMarkerData() : MUserData() {}
+#endif
     ~IntersectionMarkerData() {}
 
     struct FaceData {

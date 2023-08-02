@@ -40,6 +40,9 @@
 #include <maya/MDGModifier.h>
 #include <maya/MEvaluationNode.h>
 
+// Viewport 2.0
+#include <maya/MPxDrawOverride.h>
+
 
 MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
@@ -154,25 +157,63 @@ MStatus IntersectionMarkerNode::initialize()
 }
 
 
-MStatus IntersectionMarkerNode::postEvaluation( const  MDGContext& context, const MEvaluationNode& evaluationNode, PostEvaluationType evalType )
-{
+MStatus IntersectionMarkerNode::preEvaluation(
+    const MDGContext& context,
+    const MEvaluationNode& evaluationNode
+) {
+    if (context.isNormal()) {
+        MStatus status;
+        bool dirty = false;
+        dirty = dirty || evaluationNode.dirtyPlugExists(meshA, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(meshB, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(offsetMatrixA, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(offsetMatrixB, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(kernelType, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        if (dirty) {
+            MHWRender::MRenderer::setGeometryDrawDirty(thisMObject());
+        }
+    }
+    return MStatus::kSuccess;
+}
+
+
+MStatus IntersectionMarkerNode::postEvaluation(
+    const  MDGContext& context,
+    const MEvaluationNode& evaluationNode,
+    PostEvaluationType evalType
+) {
     // TODO: Implement this function
+    MStatus status;
 
     // MGlobal::displayInfo("node Post Evaluation");
     if(!context.isNormal()) {
         return MStatus::kFailure;
     }
 
-    MStatus status;
     if(evalType == kLeaveDirty)
     {
     }
-    else if ( (evaluationNode.dirtyPlugExists(meshA, &status) && status ) || 
-              ( evaluationNode.dirtyPlugExists(meshB, &status) && status ) )
-    {
+    else if (
+        (evaluationNode.dirtyPlugExists(meshA, &status) && status ) || 
+        (evaluationNode.dirtyPlugExists(meshB, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(offsetMatrixA, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(offsetMatrixB, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(kernelType, &status) && status )
+    ) {
         MDataBlock block = forceCache();
         MDataHandle meshAHandle = block.inputValue(meshA, &status);
         MDataHandle meshBHandle = block.inputValue(meshB, &status);
+        MHWRender::MRenderer::setGeometryDrawDirty(thisMObject());
     }
    return MStatus::kSuccess;
 }
@@ -183,14 +224,13 @@ MStatus IntersectionMarkerNode::postEvaluation( const  MDGContext& context, cons
 // perform intersection tests and determine where to draw markers based on the results.
 MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock)
 {
-    // MGlobal::displayInfo("node compute");
     MStatus status;
-    // MGlobal::displayInfo("Computing...");
+    // MGlobal::displayInfo(MString("Computing...: ") + plug.name());
 
     // Check if the plug parameter corresponds to the attribute that this node
     // is supposed to handle
     if (plug != outputIntersected) {
-        return MStatus::kUnknownParameter;
+        // return MStatus::kUnknownParameter;
     }
 
     // Get necessary input data from the dataBlock. This is usually data from
@@ -306,7 +346,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     MDataHandle outputIntersectedHandle = dataBlock.outputValue(outputIntersected, &status);
     outputIntersectedHandle.set((intersectedFaceIdsA.size() > 0) || (intersectedFaceIdsB.size() > 0));
     outputIntersectedHandle.setClean();
-
 
     // clean up
     meshAHandle.setClean();

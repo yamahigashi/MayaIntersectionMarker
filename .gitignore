@@ -1,8 +1,7 @@
 build/*
 mayabuild_*/*
 .vscode/*
-embree/*
-glm/*
+lib/*
 modules/*
 sample_src/*
 
