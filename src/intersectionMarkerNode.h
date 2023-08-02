@@ -132,6 +132,7 @@ public:
 
 std::shared_ptr<SpatialDivisionKernel> getActiveKernel() const;
             MStatus     checkIntersections(MObject &meshAObject, MObject &meshBObject, std::shared_ptr<SpatialDivisionKernel> kernel, MMatrix offset);
+            MStatus     preEvaluation(const MDGContext& context, const MEvaluationNode& evaluationNode) override;
             MStatus     getInputDagMesh(const MObject inputAttr, MFnMesh &outMesh) const;
             MStatus     getOffsetMatrix(const MObject inputAttr, MMatrix &outMatrix) const;
             MStatus     getChecksumA(int &outChecksum) const;
