@@ -132,7 +132,7 @@ void OctreeKernel::splitNode(OctreeNode* node)
 }
 
 
-std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& triangle) const
+std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& incomingTri) const
 {
     std::vector<TriangleData> intersectedTriangles;
     std::queue<OctreeNode*> nodesToCheck;
@@ -145,13 +145,12 @@ std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& tri
         OctreeNode* currentNode = nodesToCheck.front();
         nodesToCheck.pop();
 
-        if (intersectBoxTriangle(currentNode->boundingBox, triangle)) {
+        if (intersectBoxTriangle(currentNode->boundingBox, incomingTri)) {
+
             if (currentNode->isLeaf()) {
-                // If the current node is a leaf and its bounding box intersects with the triangle,
-                // then all its triangles are considered as intersected triangles
-                for (const TriangleData& triangle : currentNode->triangles) {
-                    if (intersectTriangleTriangle(triangle, triangle)) {
-                        intersectedTriangles.push_back(triangle);
+                for (const TriangleData& ourTri: currentNode->triangles) {
+                    if (intersectTriangleTriangle(ourTri, incomingTri)) {
+                        intersectedTriangles.push_back(ourTri);
                     }
                 }
             } else {
