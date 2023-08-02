@@ -33,9 +33,11 @@ Additionally, the Maya modules folder can be any location that has been configur
 ## Usage
 Using the Maya Intersection Marker plugin is straightforward:
 
-1. **Select Two Meshes:** In the Maya scene, select two meshes that you want to check for intersections.
+1. **Load the Plugin:** From the Plugin Manager, locate the `IntersectionMarker.mll` and load it.
 
-2. **Run the Command:** After selecting the meshes, run the `intersectionMarker` command in the command line or script editor.
+2. **Select Two Meshes:** In the Maya scene, select two meshes that you want to check for intersections.
+
+3. **Run the Command:** After selecting the meshes, run the `intersectionMarker` command in the command line or script editor.
 
 This will visualize any intersections between the selected meshes directly within the viewport.
 
