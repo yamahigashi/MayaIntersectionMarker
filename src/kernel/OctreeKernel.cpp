@@ -120,10 +120,34 @@ void OctreeKernel::splitNode(OctreeNode* node)
 
     // Move triangles to child nodes
     for (const TriangleData& triangle : node->triangles) {
+        bool inserted = false;
         for (int i = 0; i < 8; ++i) {
-            if (boxContainsAnyVertices(boxes[i], triangle)) {
+            if (boxContainsAllVertices(boxes[i], triangle)) {
                 node->children[i]->triangles.push_back(triangle);
+                inserted = true;
+                break;
             }
+        }
+
+        if (!inserted) {
+            // most likely the triangle is outside the bounding box
+            // treat nearest child as the one that contains the center of gravity
+
+            MPoint baryCenter = (
+                    triangle.vertices[0] +
+                    triangle.vertices[1] +
+                    triangle.vertices[2]) / 3.0;
+
+            int nearestChild = 0;
+            double minDistance = (boxes[0].center() - baryCenter).length();
+            for (int i = 1; i < 8; ++i) {
+                double distance = (boxes[i].center() - baryCenter).length();
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestChild = i;
+                }
+            }
+            node->children[nearestChild]->triangles.push_back(triangle);
         }
     }
 
@@ -185,54 +209,74 @@ void OctreeKernel::clear(OctreeNode* node)
 }
 
 
+void intersectOctreeNodesRecursive(
+        OctreeNode* nodeA,
+        OctreeNode* nodeB,
+        std::vector<std::pair<OctreeNode*, OctreeNode*>>& intersectedNodes
+) {
+    if (!nodeA->boundingBox.intersects(nodeB->boundingBox)) {
+        return;
+    }
+
+    if (nodeA->isLeaf() && nodeB->isLeaf()) {
+        intersectedNodes.push_back(std::make_pair(nodeA, nodeB));
+    } else {
+        if (nodeA->isLeaf()) {
+            for (int i = 0; i < 8; ++i) {
+                if (nodeB->children[i] != nullptr) {
+                    intersectOctreeNodesRecursive(nodeA, nodeB->children[i], intersectedNodes);
+                }
+            }
+        } else if (nodeB->isLeaf()) {
+            for (int i = 0; i < 8; ++i) {
+                if (nodeA->children[i] != nullptr) {
+                    intersectOctreeNodesRecursive(nodeA->children[i], nodeB, intersectedNodes);
+                }
+            }
+        } else {
+            for (int i = 0; i < 8; ++i) {
+                for (int j = 0; j < 8; ++j) {
+                    if (nodeA->children[i] != nullptr && nodeB->children[j] != nullptr) {
+                        intersectOctreeNodesRecursive(nodeA->children[i], nodeB->children[j], intersectedNodes);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 K2KIntersection OctreeKernel::intersectKernelKernel(
     SpatialDivisionKernel& otherKernel
 ) const {
 
-    std::vector<TriangleData> intersectedTriangles;
-    std::vector<TriangleData> otherIntersectedTriangles;
+    std::vector<TriangleData> intersectedTrianglesA;
+    std::vector<TriangleData> intersectedTrianglesB;
 
     OctreeKernel* other = dynamic_cast<OctreeKernel*>(&otherKernel);
     if (other == nullptr) {
         MGlobal::displayError("Cannot intersect octree with other kernel type!");
-        return std::make_pair(intersectedTriangles, otherIntersectedTriangles);
+        return std::make_pair(intersectedTrianglesA, intersectedTrianglesB);
     }
 
+    std::vector<std::pair<OctreeNode*, OctreeNode*>> intersectedNodes;
+    intersectOctreeNodesRecursive(this->root, other->root, intersectedNodes);
 
-    std::queue<std::pair<OctreeNode*, OctreeNode*>> nodesToCheck;
+    for (const auto& pair : intersectedNodes) {
+        OctreeNode* nodeA = pair.first;
+        OctreeNode* nodeB = pair.second;
 
-    if (this->root != nullptr && other->root != nullptr) {
-        nodesToCheck.push(std::make_pair(this->root, other->root));
-    }
-
-    while (!nodesToCheck.empty()) {
-        std::pair<OctreeNode*, OctreeNode*> currentNodes = nodesToCheck.front();
-        nodesToCheck.pop();
-
-        if (currentNodes.first->boundingBox.intersects(currentNodes.second->boundingBox)) {
-            if (currentNodes.first->isLeaf() && currentNodes.second->isLeaf()) {
-                // If both nodes are leaves and their bounding boxes intersect,
-                // then all their triangles are considered as intersected triangles
-                std::copy(
-                    currentNodes.first->triangles.begin(),
-                    currentNodes.first->triangles.end(),
-                    std::back_inserter(intersectedTriangles)
-                );
-                std::copy(
-                    currentNodes.second->triangles.begin(),
-                    currentNodes.second->triangles.end(),
-                    std::back_inserter(otherIntersectedTriangles)
-                );
-            } else {
-                // If one of the nodes is not a leaf, then check its children
-                for (int i = 0; i < 8; ++i) {
-                    if (currentNodes.first->children[i] != nullptr && currentNodes.second->children[i] != nullptr) {
-                        nodesToCheck.push(std::make_pair(currentNodes.first->children[i], currentNodes.second->children[i]));
+        if (nodeA->isLeaf() && nodeB->isLeaf()) {
+            for (TriangleData triA : nodeA->triangles) {
+                for (TriangleData triB : nodeB->triangles) {
+                    if (intersectTriangleTriangle(triA, triB)) {
+                        intersectedTrianglesA.push_back(triA);
+                        intersectedTrianglesB.push_back(triB);
                     }
                 }
             }
         }
     }
 
-    return std::make_pair(intersectedTriangles, otherIntersectedTriangles);
+    return std::make_pair(intersectedTrianglesA, intersectedTrianglesB);
 }

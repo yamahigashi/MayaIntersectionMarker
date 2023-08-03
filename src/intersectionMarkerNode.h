@@ -32,6 +32,7 @@
 #define VERTEX_CHECKSUM_B  "vertexChecksumB"
 
 #define KERNEL             "kernel"
+#define COLLISION_MODE     "collisionMode"
 #define OUTPUT_INTERSECTED "outputIntersected"
 #define OUT_MESH           "outMesh"
 #define CACHE_SIZE         10000
@@ -153,6 +154,7 @@ public:
     static MObject      vertexChecksumA;
     static MObject      vertexChecksumB;
     static MObject      kernelType;
+    static MObject      collisionMode;
 
     static MObject      outputIntersected;
     
