@@ -187,7 +187,7 @@ void IntersectionMarkerDrawOverride::addUIDrawables(
         return;
     }
 
-    drawManager.beginDrawable();
+    drawManager.beginDrawable(MHWRender::MUIDrawManager::kNonSelectable);
     {
         // drawManager.setLineWidth(2.0f);
         drawManager.setLineStyle(MUIDrawManager::kSolid);
