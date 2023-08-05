@@ -53,6 +53,7 @@ MObject IntersectionMarkerNode::restIntersected;
 MObject IntersectionMarkerNode::vertexChecksumA;
 MObject IntersectionMarkerNode::vertexChecksumB;
 MObject IntersectionMarkerNode::kernelType;
+MObject IntersectionMarkerNode::collisionMode;
 
 MObject IntersectionMarkerNode::outputIntersected;
 CacheType IntersectionMarkerNode::cache(CACHE_SIZE);
@@ -129,6 +130,14 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(kernelType);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
+    // Initialize Collision mode
+    collisionMode = eAttr.create(COLLISION_MODE, COLLISION_MODE, 0, &status);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+    eAttr.addField("Kernel to Triangle", 0);
+    eAttr.addField("Kernel to Kernel", 1);
+    status = addAttribute(collisionMode);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
     // Initialize Output Intersected
     outputIntersected = nAttr.create(OUTPUT_INTERSECTED, OUTPUT_INTERSECTED, MFnNumericData::kBoolean, 0);
     nAttr.setStorable(true);
@@ -151,6 +160,7 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     status = attributeAffects(kernelType, outputIntersected);
+    status = attributeAffects(collisionMode, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     return MS::kSuccess;
@@ -177,6 +187,9 @@ MStatus IntersectionMarkerNode::preEvaluation(
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
         dirty = dirty || evaluationNode.dirtyPlugExists(kernelType, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(collisionMode, &status);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
         if (dirty) {
@@ -208,7 +221,8 @@ MStatus IntersectionMarkerNode::postEvaluation(
         (evaluationNode.dirtyPlugExists(meshB, &status) && status ) ||
         (evaluationNode.dirtyPlugExists(offsetMatrixA, &status) && status ) ||
         (evaluationNode.dirtyPlugExists(offsetMatrixB, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(kernelType, &status) && status )
+        (evaluationNode.dirtyPlugExists(kernelType, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(collisionMode, &status) && status )
     ) {
         MDataBlock block = forceCache();
         MDataHandle meshAHandle = block.inputValue(meshA, &status);
@@ -308,38 +322,52 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
         // Build kernel A
         std::shared_ptr<SpatialDivisionKernel> kernelA = getActiveKernel();
-        MBoundingBox bbox = getBoundingBox(meshA);
-        bbox.transformUsing(offsetA);
-        status = kernelA->build(meshAObject, bbox, offsetA);
+        MBoundingBox bboxA = getBoundingBox(meshA);
+        bboxA.transformUsing(offsetA);
+        status = kernelA->build(meshAObject, bboxA, offsetA);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
-        // check intersections
+        MDataHandle modeHandle = dataBlock.inputValue(collisionMode, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+        bool mode = modeHandle.asBool();
+        if (mode == 0) {
+            // Kernel A vs Mesh B Triangles
+            // check intersections
+            status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
+            if(status != MStatus::kSuccess) {
+                MGlobal::displayError("Failed to get offset data handle");
+                return status;
+            }
 
-        status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
-        if(status != MStatus::kSuccess) {
-            MGlobal::displayError("Failed to get offset data handle");
-            return status;
+        } else if (mode == 1) {
+            // Kernel A vs Kernel B
+            //
+            // Build kernel B
+            std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
+            MBoundingBox bboxB = getBoundingBox(meshB);
+            bboxB.transformUsing(offsetB);
+            status = kernelB->build(meshBObject, bboxB, offsetB);
+            CHECK_MSTATUS_AND_RETURN_IT(status);
+
+            K2KIntersection pairs = kernelA->intersectKernelKernel(*kernelB);
+            for (auto pair : pairs.first) {
+                this->intersectedFaceIdsA.insert(pair.faceIndex);
+            }
+            for (auto pair : pairs.second) {
+                this->intersectedFaceIdsB.insert(pair.faceIndex);
+            }
+
+        } else {
+            modeHandle.setClean();
+            MGlobal::displayError("Invalid collision mode");
+            return MStatus::kFailure;
         }
-
-        // Build kernel B
-        // std::shared_ptr<SpatialDivisionKernel> kernelB = getActiveKernel();
-        // bbox = getBoundingBox(meshB);
-        // bbox.transformUsing(offsetB);
-        // status = kernelB->build(meshBObject, bbox, offsetB.inverse());
-        // CHECK_MSTATUS_AND_RETURN_IT(status);
-
-        // K2KIntersection pairs = kernel->intersectKernelKernel(*kernelB);
-        // for (auto pair : pairs.first) {
-        //     this->intersectedFaceIdsA.insert(pair.faceIndex);
-        // }
-        // for (auto pair : pairs.second) {
-        //     this->intersectedFaceIdsB.insert(pair.faceIndex);
-        // }
 
         // -------------------------------------------------------------------------------------------
         // Store the result in the cache
         CacheResultType res{this->intersectedFaceIdsA, this->intersectedFaceIdsB};
         this->cache.put(key, res);
+        modeHandle.setClean();
     }
 
     // Get output data handle
