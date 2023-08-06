@@ -30,6 +30,8 @@
 #define REST_INTERSECTED   "restIntersected"
 #define VERTEX_CHECKSUM_A  "vertexChecksumA"
 #define VERTEX_CHECKSUM_B  "vertexChecksumB"
+#define SHOW_MESH_A        "showMeshA"
+#define SHOW_MESH_B        "showMeshB"
 
 #define KERNEL             "kernel"
 #define COLLISION_MODE     "collisionMode"
@@ -153,6 +155,8 @@ public:
 
     static MObject      vertexChecksumA;
     static MObject      vertexChecksumB;
+    static MObject      showMeshA;
+    static MObject      showMeshB;
     static MObject      kernelType;
     static MObject      collisionMode;
 
