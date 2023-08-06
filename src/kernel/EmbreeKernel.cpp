@@ -206,10 +206,30 @@ std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& tri
         }
 
         if (isALeaf) {
+
+            // FIXME:
+            // Ideally, we should use box-to-box checks for collisions. However,
+            // due to the occurrence of extremely small boxes, collisions
+            // might be missed. Therefore, we're opting to skip the check.
+            // if (!intersectBoxBox(currentNode->leaf()->bounds, triangle.bbox)) {
+
             int index = currentNode->leaf()->id;
             TriangleData triangleData = this->triangles[index];
             if (intersectTriangleTriangle(triangle, triangleData)) {
                 intersectingA.push_back(triangleData);
+            }
+
+            if (index > 0) {
+                triangleData = this->triangles[index-1];
+                if (intersectTriangleTriangle(triangle, triangleData)) {
+                    intersectingA.push_back(triangleData);
+                }
+            }
+            if (index < this->triangles.size()-1) {
+                triangleData = this->triangles[index+1];
+                if (intersectTriangleTriangle(triangle, triangleData)) {
+                    intersectingA.push_back(triangleData);
+                }
             }
         }
 
