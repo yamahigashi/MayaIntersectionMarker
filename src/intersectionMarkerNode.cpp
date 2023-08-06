@@ -218,7 +218,6 @@ MStatus IntersectionMarkerNode::preEvaluation(
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
         if (dirty) {
-            MGlobal::displayInfo("node Pre Evaluation");
             MHWRender::MRenderer::setGeometryDrawDirty(thisMObject());
         }
     }

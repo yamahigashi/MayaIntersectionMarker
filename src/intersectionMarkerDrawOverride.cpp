@@ -193,7 +193,7 @@ void IntersectionMarkerDrawOverride::addUIDrawables(
     // cast the user data back to our to our struct
     const IntersectionMarkerData* markerData = dynamic_cast<const IntersectionMarkerData*>(data);
     if (!markerData) {
-        MGlobal::displayInfo("addUIDrawables: markerData is null");
+        // MGlobal::displayInfo("addUIDrawables: markerData is null");
         return;
     }
 
