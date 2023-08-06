@@ -52,6 +52,8 @@ MObject IntersectionMarkerNode::restIntersected;
 
 MObject IntersectionMarkerNode::vertexChecksumA;
 MObject IntersectionMarkerNode::vertexChecksumB;
+MObject IntersectionMarkerNode::showMeshA;
+MObject IntersectionMarkerNode::showMeshB;
 MObject IntersectionMarkerNode::kernelType;
 MObject IntersectionMarkerNode::collisionMode;
 
@@ -94,6 +96,23 @@ MStatus IntersectionMarkerNode::initialize()
     CHECK_MSTATUS_AND_RETURN_IT(status);
     offsetMatrixB = mAttr.create(OFFSET_MATRIX_B, OFFSET_MATRIX_B);
     status = addAttribute(offsetMatrixB);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    // Showing Result of Intersection
+    showMeshA = nAttr.create(SHOW_MESH_A, SHOW_MESH_A, MFnNumericData::kBoolean, 1);
+    status = addAttribute(showMeshA);
+    nAttr.setStorable(true);
+    nAttr.setWritable(true);
+    nAttr.setReadable(false);
+    nAttr.setKeyable(true);
+    CHECK_MSTATUS_AND_RETURN_IT(status);
+
+    showMeshB = nAttr.create(SHOW_MESH_B, SHOW_MESH_B, MFnNumericData::kBoolean, 1);
+    status = addAttribute(showMeshB);
+    nAttr.setStorable(true);
+    nAttr.setWritable(true);
+    nAttr.setReadable(false);
+    nAttr.setKeyable(true);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     // Initialize Rest Intersected
@@ -157,6 +176,8 @@ MStatus IntersectionMarkerNode::initialize()
     status = attributeAffects(offsetMatrixB, outputIntersected);
     status = attributeAffects(meshA, outputIntersected);
     status = attributeAffects(meshB, outputIntersected);
+    status = attributeAffects(showMeshA, outputIntersected);
+    status = attributeAffects(showMeshB, outputIntersected);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
     status = attributeAffects(kernelType, outputIntersected);
@@ -190,6 +211,10 @@ MStatus IntersectionMarkerNode::preEvaluation(
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
         dirty = dirty || evaluationNode.dirtyPlugExists(collisionMode, &status);
+        dirty = dirty || evaluationNode.dirtyPlugExists(showMeshA, &status);
+        CHECK_MSTATUS_AND_RETURN_IT(status);
+
+        dirty = dirty || evaluationNode.dirtyPlugExists(showMeshB, &status);
         CHECK_MSTATUS_AND_RETURN_IT(status);
 
         if (dirty) {
@@ -222,7 +247,9 @@ MStatus IntersectionMarkerNode::postEvaluation(
         (evaluationNode.dirtyPlugExists(offsetMatrixA, &status) && status ) ||
         (evaluationNode.dirtyPlugExists(offsetMatrixB, &status) && status ) ||
         (evaluationNode.dirtyPlugExists(kernelType, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(collisionMode, &status) && status )
+        (evaluationNode.dirtyPlugExists(collisionMode, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(showMeshA, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(showMeshB, &status) && status )
     ) {
         MDataBlock block = forceCache();
         MDataHandle meshAHandle = block.inputValue(meshA, &status);
@@ -277,6 +304,13 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     MMatrix offsetA = offsetAHandle.asMatrix();
     MMatrix offsetB = offsetBHandle.asMatrix();
 
+    MDataHandle showMeshAHandle = dataBlock.inputValue(showMeshA);
+    MDataHandle showMeshBHandle = dataBlock.inputValue(showMeshB);
+    bool showA = showMeshAHandle.asBool();
+    bool showB = showMeshBHandle.asBool();
+    showMeshAHandle.setClean();
+    showMeshBHandle.setClean();
+
     // -------------------------------------------------------------------------------------------
     // update checksums
     // MGlobal::displayInfo("update checksums...");
@@ -288,12 +322,15 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
 
     int checkA = vertexChecksumAHandle.asInt();
     int checkB = vertexChecksumBHandle.asInt();
+    newCheckA = newCheckA ^ int(showA);
+    newCheckB = newCheckB ^ int(showB);
 
     // If the checksums are the same, then we don't need to do anything
     // because the meshes have not changed.
     if (checkA == newCheckA && checkB == newCheckB) {
         vertexChecksumAHandle.setClean();
         vertexChecksumBHandle.setClean();
+
         return MS::kSuccess;
     }
 

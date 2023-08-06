@@ -1,0 +1,68 @@
+proc _registerNodeHelp(string $type, string $cmd)
+{
+    global string $gAttributeEditorNodeTypeArray[];
+    global string $gAttributeEditorHelpCommandArray[];
+
+    int $idx, $len = size($gAttributeEditorNodeTypeArray);
+    for ($idx = 0; $idx < $len; ++$idx) {
+        if ($type == $gAttributeEditorNodeTypeArray[$idx]) break;
+    }
+
+    if ($idx < $len) {
+        $gAttributeEditorHelpCommandArray[$idx] = $cmd;
+    } else {
+        $gAttributeEditorNodeTypeArray[$idx] = $type;
+        $gAttributeEditorHelpCommandArray[$idx] = $cmd;
+    }
+}
+
+
+global proc AEintersectionMarkerTemplate(string $nodename)
+{
+    editorTemplate -beginLayout "Intersection Marker Attributes" -collapse 0;
+
+    {
+        string $url = "https://github.com/yamahigashi/MayaIntersectionMarker";
+        _registerNodeHelp("intersectionMarker", "showHelp -a \""+ $url +"\"");
+        
+        // editorTemplate -beginLayout "Mesh Inputs" -collapse 0;
+        //     editorTemplate -addControl "meshA";
+        //     editorTemplate -addControl "meshB";
+        // editorTemplate -endLayout;
+        // 
+        // editorTemplate -beginLayout "Offset Matrices" -collapse 0;
+        //     editorTemplate -addControl "offsetMatrixA";
+        //     editorTemplate -addControl "offsetMatrixB";
+        // editorTemplate -endLayout;
+
+        editorTemplate -beginLayout "Display Options" -collapse 0;
+            editorTemplate -addControl "showMeshA";
+            editorTemplate -addControl "showMeshB";
+            // editorTemplate -addControl "restIntersected";
+        editorTemplate -endLayout;
+        
+        editorTemplate -beginLayout "Checksums" -collapse 0;
+            editorTemplate -addControl "vertexChecksumA";
+            editorTemplate -addControl "vertexChecksumB";
+        editorTemplate -endLayout;
+
+        editorTemplate -beginLayout "Kernel Options" -collapse 0;
+            editorTemplate -addControl "kernel";
+            editorTemplate -addControl "collisionMode";
+        editorTemplate -endLayout;
+
+        // editorTemplate -beginLayout "Output" -collapse 0;
+        //     editorTemplate -addControl "outputIntersected";
+        // editorTemplate -endLayout;
+    }
+
+    // End layout for IntersectionMarkerNode
+    editorTemplate -endLayout;
+
+    AEdependNodeTemplate($nodename);
+
+    editorTemplate("-addExtraControls");
+    editorTemplate("-endScrollLayout");
+}
+
+// AEIntersectionMarkerNodeTemplate($gAECurrentTab);

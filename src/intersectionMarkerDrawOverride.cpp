@@ -109,10 +109,10 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     prevChecksum = newChecksum;
 
     MFnMesh meshAFn;
-    MFnMesh meshBFn;
     status = node->getInputDagMesh(node->meshA, meshAFn);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: meshAFn is null");
 
+    MFnMesh meshBFn;
     status = node->getInputDagMesh(node->meshB, meshBFn);
     CHECK_MSTATUS_AND_RETURN_DATA("prepareForDraw: meshBFn is null");
 
@@ -122,8 +122,18 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     node->getOffsetMatrix(node->offsetMatrixA, outMatrixA);
     node->getOffsetMatrix(node->offsetMatrixB, outMatrixB);
 
-    addIntersectedVertices(meshAFn, data, node->intersectedFaceIdsA, outMatrixA);
-    addIntersectedVertices(meshBFn, data, node->intersectedFaceIdsB, outMatrixB);
+    MPlug showMeshAPlug = depNodeFn.findPlug("showMeshA", false, &status);
+    bool showMeshA = showMeshAPlug.asBool();
+    MPlug showMeshBPlug = depNodeFn.findPlug("showMeshB", false, &status);
+    bool showMeshB = showMeshBPlug.asBool();
+
+    if (showMeshA) {
+        addIntersectedVertices(meshAFn, data, node->intersectedFaceIdsA, outMatrixA);
+    }
+
+    if (showMeshB) {
+        addIntersectedVertices(meshBFn, data, node->intersectedFaceIdsB, outMatrixB);
+    }
 
     return data;
 }
@@ -183,7 +193,7 @@ void IntersectionMarkerDrawOverride::addUIDrawables(
     // cast the user data back to our to our struct
     const IntersectionMarkerData* markerData = dynamic_cast<const IntersectionMarkerData*>(data);
     if (!markerData) {
-        MGlobal::displayInfo("addUIDrawables: markerData is null");
+        // MGlobal::displayInfo("addUIDrawables: markerData is null");
         return;
     }
 
