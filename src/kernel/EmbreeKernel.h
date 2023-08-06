@@ -18,7 +18,6 @@
 struct InnerNode;
 struct LeafNode;
 
-using TriangleList = std::vector<TriangleData>;
 struct Node
 {
     virtual  InnerNode* branch() { return nullptr; }
@@ -26,7 +25,6 @@ struct Node
     virtual       bool  isLeaf()   { return false; }
 
              InnerNode* parent() { return nullptr; }
-           TriangleList triangles;
 };
 
 
@@ -94,8 +92,13 @@ struct LeafNode : public Node
         assert(numPrims == 1);
         void* ptr = rtcThreadLocalAlloc(alloc,sizeof(LeafNode),16);
         // return (void*) new (ptr) LeafNode(prims->primID,*(MBoundingBox*)prims);
+            MBoundingBox box(
+                MPoint(prims->lower_x, prims->lower_y, prims->lower_z),
+                MPoint(prims->upper_x, prims->upper_y, prims->upper_z)
+            );
 
-        Node *node = new (ptr) LeafNode(prims->primID, *(MBoundingBox*)prims);
+        Node *node = new (ptr) LeafNode(prims->primID, box);
+        // Node *node = new (ptr) LeafNode(prims->primID, *(MBoundingBox*)prims);
         return (void *)node;
     }
 

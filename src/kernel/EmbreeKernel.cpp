@@ -145,14 +145,15 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
     arguments.byteSize               = sizeof(arguments);
     // arguments.buildFlags             = RTC_BUILD_FLAG_NONE;
     arguments.buildFlags             = RTC_BUILD_FLAG_DYNAMIC;
-    arguments.buildQuality           = RTC_BUILD_QUALITY_MEDIUM;
+    arguments.buildQuality           = RTC_BUILD_QUALITY_LOW;
+    // arguments.buildQuality           = RTC_BUILD_QUALITY_MEDIUM;
     arguments.maxBranchingFactor     = 2;
     arguments.maxDepth               = 1024;
     arguments.sahBlockSize           = 1;
     arguments.minLeafSize            = 1;
     arguments.maxLeafSize            = 8;
     arguments.traversalCost          = 1.0f;
-    arguments.intersectionCost       = 1.0f;
+    arguments.intersectionCost       = 2.0f;
     arguments.bvh                    = this->bvh;
     arguments.primitives             = primitives.data();
     arguments.primitiveCount         = primitives.size();
@@ -176,8 +177,7 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
 }
 
 
-
-std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& triangle) const
+std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& triangleB) const
 {
     std::vector<TriangleData> intersectingA;
 
@@ -197,40 +197,47 @@ std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& tri
             MBoundingBox bboxL = currentNode->branch()->bounds[0];
             MBoundingBox bboxR = currentNode->branch()->bounds[1];
 
-            if (intersectBoxBox(bboxL, triangle.bbox)) {
+            if (intersectBoxBox(bboxL, triangleB.bbox)) {
                 stack.push(currentNode->branch()->children[0]);
             }
-            if (intersectBoxBox(bboxR, triangle.bbox)) {
+            if (intersectBoxBox(bboxR, triangleB.bbox)) {
                 stack.push(currentNode->branch()->children[1]);
             }
         }
 
         if (isALeaf) {
 
-            // FIXME:
-            // Ideally, we should use box-to-box checks for collisions. However,
-            // due to the occurrence of extremely small boxes, collisions
-            // might be missed. Therefore, we're opting to skip the check.
-            // if (!intersectBoxBox(currentNode->leaf()->bounds, triangle.bbox)) {
+            // While it's possible to determine intersections between bounding boxes and
+            // decide if they can be skipped, the subsequent code for triangle-to-triangle
+            // intersection checks is quite similar. Therefore, it might be more efficient
+            // to leave this task to the triangle-to-triangle intersection checks
+            // if (!intersectBoxBox(currentNode->leaf()->bounds, triangleB.bbox)) {
+            //     continue;
+            // }
 
             int index = currentNode->leaf()->id;
-            TriangleData triangleData = this->triangles[index];
-            if (intersectTriangleTriangle(triangle, triangleData)) {
-                intersectingA.push_back(triangleData);
+            TriangleData triangleA = this->triangles[index];
+            if (intersectTriangleTriangle(triangleB, triangleA)) {
+                intersectingA.push_back(triangleA);
             }
 
-            if (index > 0) {
-                triangleData = this->triangles[index-1];
-                if (intersectTriangleTriangle(triangle, triangleData)) {
-                    intersectingA.push_back(triangleData);
-                }
-            }
-            if (index < this->triangles.size()-1) {
-                triangleData = this->triangles[index+1];
-                if (intersectTriangleTriangle(triangle, triangleData)) {
-                    intersectingA.push_back(triangleData);
-                }
-            }
+            // Depending on the quality of the BVH, overlapping regions might cause
+            // adjacent faces to be skipped. It's essential to address this issue.
+            // If this happens, we can check the adjacent triangles as well.
+            //
+            // if (index > 0) {
+            //     triangleA = this->triangles[index-1];
+            //     if (intersectTriangleTriangle(triangleB, triangleA)) {
+            //         intersectingA.push_back(triangleA);
+            //     }
+            // }
+            // 
+            // if (index < this->triangles.size()-1) {
+            //     triangleA = this->triangles[index+1];
+            //     if (intersectTriangleTriangle(triangleB, triangleA)) {
+            //         intersectingA.push_back(triangleA);
+            //     }
+            // }
         }
 
     };
@@ -311,7 +318,6 @@ K2KIntersection EmbreeKernel::intersectKernelKernel(
 
     EmbreeKernel* other = dynamic_cast<EmbreeKernel*>(&otherKernel);
     if (!other) {
-        // MGlobal::displayError("Failed to cast SpatialDivisionKernel to EmbreeKernel");
         return std::make_pair(intersectedTrianglesA, intersectedTrianglesB);
     }
 
@@ -323,13 +329,15 @@ K2KIntersection EmbreeKernel::intersectKernelKernel(
         Node* nodeB = pair.second;
 
         if (nodeA->isLeaf() && nodeB->isLeaf()) {
-            for (TriangleData triA : nodeA->triangles) {
-                for (TriangleData triB : nodeB->triangles) {
-                    if (intersectTriangleTriangle(triA, triB)) {
-                        intersectedTrianglesA.push_back(triA);
-                        intersectedTrianglesB.push_back(triB);
-                    }
-                }
+            int nodeAId = nodeA->leaf()->id;
+            int nodeBId = nodeB->leaf()->id;
+
+            TriangleData triA = this->triangles[nodeAId];
+            TriangleData triB = other->triangles[nodeBId];
+
+            if (intersectTriangleTriangle(triA, triB)) {
+                intersectedTrianglesA.push_back(triA);
+                intersectedTrianglesB.push_back(triB);
             }
         }
     }
