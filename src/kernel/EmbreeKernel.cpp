@@ -239,6 +239,66 @@ std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& tri
 }
 
 
+void intersectBvhNodesRecursive(
+        Node* nodeA,
+        Node* nodeB,
+        std::vector<std::pair<Node*, Node*>>& intersectedNodes
+) {
+    if (!nodeA || !nodeB) {
+        return;
+    }
+
+    bool isAInner = nodeA->branch() != nullptr;
+    bool isBInner = nodeB->branch() != nullptr;
+    bool isALeaf = nodeA->leaf() != nullptr;
+    bool isBLeaf = nodeB->leaf() != nullptr;
+
+    if (nodeA->isLeaf() && nodeB->isLeaf()) {
+        intersectedNodes.push_back({nodeA, nodeB});
+        return;
+    }
+
+    if (nodeA->isLeaf()) {  // A is leaf, B is inner
+        if (intersectBoxBox(nodeA->leaf()->bounds, nodeB->branch()->bounds[0])) {
+            intersectBvhNodesRecursive(nodeA, nodeB->branch()->children[0], intersectedNodes);
+        }
+
+        if (intersectBoxBox(nodeA->leaf()->bounds, nodeB->branch()->bounds[1])) {
+            intersectBvhNodesRecursive(nodeA, nodeB->branch()->children[1], intersectedNodes);
+        }
+        return;
+    }
+
+    if (nodeB->isLeaf()) {  // A is inner, B is leaf
+        if (intersectBoxBox(nodeB->leaf()->bounds, nodeA->branch()->bounds[0])) {
+            intersectBvhNodesRecursive(nodeA->branch()->children[0], nodeB, intersectedNodes);
+        }
+
+        if (intersectBoxBox(nodeB->leaf()->bounds, nodeA->branch()->bounds[1])) {
+            intersectBvhNodesRecursive(nodeA->branch()->children[1], nodeB, intersectedNodes);
+        }
+        return;
+    }
+
+    // Both are inner nodes
+    if (intersectBoxBox(nodeA->branch()->bounds[0], nodeB->branch()->bounds[0])) {
+        intersectBvhNodesRecursive(nodeA->branch()->children[0], nodeB->branch()->children[0], intersectedNodes);
+    }
+
+    if (intersectBoxBox(nodeA->branch()->bounds[0], nodeB->branch()->bounds[1])) {
+        intersectBvhNodesRecursive(nodeA->branch()->children[0], nodeB->branch()->children[1], intersectedNodes);
+    }
+
+    if (intersectBoxBox(nodeA->branch()->bounds[1], nodeB->branch()->bounds[0])) {
+        intersectBvhNodesRecursive(nodeA->branch()->children[1], nodeB->branch()->children[0], intersectedNodes);
+    }
+
+    if (intersectBoxBox(nodeA->branch()->bounds[1], nodeB->branch()->bounds[1])) {
+        intersectBvhNodesRecursive(nodeA->branch()->children[1], nodeB->branch()->children[1], intersectedNodes);
+    }
+}
+
+
 K2KIntersection EmbreeKernel::intersectKernelKernel(
 
     SpatialDivisionKernel& otherKernel
@@ -246,88 +306,33 @@ K2KIntersection EmbreeKernel::intersectKernelKernel(
 ) const {
     // MGlobal::displayInfo(MString("Intersecting EmbreeKernel with "));
 
-    std::vector<TriangleData> intersectingA;
-    std::vector<TriangleData> intersectingB;
+    std::vector<TriangleData> intersectedTrianglesA;
+    std::vector<TriangleData> intersectedTrianglesB;
 
     EmbreeKernel* other = dynamic_cast<EmbreeKernel*>(&otherKernel);
     if (!other) {
         // MGlobal::displayError("Failed to cast SpatialDivisionKernel to EmbreeKernel");
-        return std::make_pair(intersectingA, intersectingB);
+        return std::make_pair(intersectedTrianglesA, intersectedTrianglesB);
     }
 
-    // FIXME: change this to stackless traversal
-    // // Start with root nodes of both BVHs
-    // std::stack<NodePair> stack;
-    // stack.push({root, other->root});
-    // 
-    // while (!stack.empty()) {
-    // 
-    //     NodePair currentPair = stack.top();
-    //     stack.pop();
-    // 
-    //     // Cast the base Node type to their respective subtypes
-    //     bool isAInner = currentPair.nodeA->branch() != nullptr;
-    //     bool isBInner = currentPair.nodeB->branch() != nullptr;
-    //     bool isALeaf  = currentPair.nodeA->leaf()   != nullptr;
-    //     bool isBLeaf  = currentPair.nodeB->leaf()   != nullptr;
-    // 
-    //     Node *nodeA = currentPair.nodeA;
-    //     Node *nodeB = currentPair.nodeB;
-    // 
-    //     // Iterate over the bounds of each node and check for intersections
-    //     bool anyIntersected = false;
-    //     for (int i = 0; i < 2; ++i)  {
-    //         if (anyIntersected){ break; }
-    // 
-    //         // Assign the bounds for A and B depending on their type
-    //         MBoundingBox bboxA, bboxB;
-    //         if      (isAInner){ bboxA = nodeA->branch()->bounds[i]; }
-    //         else if  (isALeaf){ bboxA = nodeA->leaf()->bounds; }
-    //         else { throw std::runtime_error("Node A is neither a leaf nor an inner node"); }
-    // 
-    //         for (int j = 0; j < 2; ++j) {
-    //             if      (isBInner){ bboxB = nodeB->branch()->bounds[i]; }
-    //             else if  (isBLeaf){ bboxB = nodeB->leaf()->bounds; }
-    //             else throw std::runtime_error("Node B is neither a leaf nor an inner node");
-    // 
-    //             // Check if the bounds intersect
-    //             if (intersectBoxBox(bboxA, bboxB)) {
-    //                 anyIntersected = true;
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // 
-    //     // Skip if bounding boxes of current nodes do not intersect
-    //     if (!anyIntersected) {
-    //         continue;
-    //     }
-    // 
-    //     if (isALeaf && isBLeaf) {
-    //         LeafNode* leafNodeA = nodeA->leaf();
-    //         LeafNode* leafNodeB = nodeB->leaf();
-    // 
-    //         intersectingA.push_back( this->triangles[leafNodeA->id]);
-    //         intersectingB.push_back(other->triangles[leafNodeB->id]);
-    // 
-    //     } else {
-    //         // If one or both nodes are not leaves, push their children onto the stack
-    //         if (isAInner) {
-    //             InnerNode* innerNodeA = nodeA->branch();
-    //             for (Node* child : nodeA->branch()->children) {
-    //                 stack.push({child, nodeB});
-    //             }
-    // 
-    //         }
-    //         if (isBInner) {
-    //             InnerNode* innerNodeB = nodeB->branch();
-    // 
-    //             for (Node* child : nodeB->branch()->children) {
-    //                 stack.push({nodeA, child});
-    //             }
-    //         }
-    //     }
-    // }
+    std::vector<std::pair<Node*, Node*>> intersectedNodes;
+    intersectBvhNodesRecursive(this->root, other->root, intersectedNodes);
 
-    return std::make_pair(intersectingA, intersectingB);
+    for (const auto& pair : intersectedNodes) {
+        Node* nodeA = pair.first;
+        Node* nodeB = pair.second;
+
+        if (nodeA->isLeaf() && nodeB->isLeaf()) {
+            for (TriangleData triA : nodeA->triangles) {
+                for (TriangleData triB : nodeB->triangles) {
+                    if (intersectTriangleTriangle(triA, triB)) {
+                        intersectedTrianglesA.push_back(triA);
+                        intersectedTrianglesB.push_back(triB);
+                    }
+                }
+            }
+        }
+    }
+
+    return std::make_pair(intersectedTrianglesA, intersectedTrianglesB);
 }
