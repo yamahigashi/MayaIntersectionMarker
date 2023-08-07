@@ -143,7 +143,7 @@ void KDTreeKernel::setChildBoundingBoxes(KDTreeNode* node) {
 }
 
 
-std::vector<TriangleData> queryIntersectedRecursive(
+std::vector<TriangleData> intersectKernelTriangleRecursive(
         const TriangleData& triangle,
         const KDTreeNode* node
 ) {
@@ -157,8 +157,8 @@ std::vector<TriangleData> queryIntersectedRecursive(
         }
     } else {
         if (intersectBoxBox(node->boundingBox, triangle.bbox)) {
-            std::vector<TriangleData> leftTriangles = queryIntersectedRecursive(triangle, node->left);
-            std::vector<TriangleData> rightTriangles = queryIntersectedRecursive(triangle, node->right);
+            std::vector<TriangleData> leftTriangles = intersectKernelTriangleRecursive(triangle, node->left);
+            std::vector<TriangleData> rightTriangles = intersectKernelTriangleRecursive(triangle, node->right);
             intersectedTriangles.insert(
                     intersectedTriangles.end(),
                     leftTriangles.begin(),
@@ -171,11 +171,11 @@ std::vector<TriangleData> queryIntersectedRecursive(
     }
     /*  TODO: profile this and see if it's faster
         if (triangleIntersectsBoundingBox(triangle, node->left->boundingBox)) {
-            std::vector<TriangleData> leftResult = queryIntersectedRecursive(node->left, triangle);
+            std::vector<TriangleData> leftResult = intersectKernelTriangleRecursive(node->left, triangle);
             result.insert(result.end(), leftResult.begin(), leftResult.end());
         }
         if (triangleIntersectsBoundingBox(triangle, node->right->boundingBox)) {
-            std::vector<TriangleData> rightResult = queryIntersectedRecursive(node->right, triangle);
+            std::vector<TriangleData> rightResult = intersectKernelTriangleRecursive(node->right, triangle);
             result.insert(result.end(), rightResult.begin(), rightResult.end());
         }
     }
@@ -185,10 +185,10 @@ std::vector<TriangleData> queryIntersectedRecursive(
 }
 
 
-std::vector<TriangleData> KDTreeKernel::queryIntersected(
+std::vector<TriangleData> KDTreeKernel::intersectKernelTriangle(
         const TriangleData& triangle
 ) const {
-    return queryIntersectedRecursive(triangle, root);
+    return intersectKernelTriangleRecursive(triangle, root);
 }
 
 

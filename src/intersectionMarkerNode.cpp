@@ -483,7 +483,7 @@ MStatus IntersectionMarkerNode::checkIntersections(MObject &meshAObject, MObject
                 TriangleData triangle(polygonIndex, triangleIndex, p0, p1, p2);
 
                 // Check intersection between triangle and the octree (kernel)
-                std::vector<TriangleData> intersectedTriangles = kernel->queryIntersected(triangle);
+                std::vector<TriangleData> intersectedTriangles = kernel->intersectKernelTriangle(triangle);
 
                 // If there is any intersection, store the intersection data into intersectedVertexIdsLocal
                 if (!intersectedTriangles.empty()) {

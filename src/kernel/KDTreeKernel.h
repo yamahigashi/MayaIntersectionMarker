@@ -33,7 +33,7 @@ public:
     }
 
     MStatus build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix) override;
-    std::vector<TriangleData> queryIntersected(const TriangleData& triangle) const override;
+    std::vector<TriangleData> intersectKernelTriangle(const TriangleData& triangle) const override;
     K2KIntersection intersectKernelKernel(SpatialDivisionKernel& otherKernel) const override { return K2KIntersection(); }
 
 private:

@@ -156,7 +156,7 @@ void OctreeKernel::splitNode(OctreeNode* node)
 }
 
 
-std::vector<TriangleData> OctreeKernel::queryIntersected(const TriangleData& incomingTri) const
+std::vector<TriangleData> OctreeKernel::intersectKernelTriangle(const TriangleData& incomingTri) const
 {
     std::vector<TriangleData> intersectedTriangles;
     std::queue<OctreeNode*> nodesToCheck;

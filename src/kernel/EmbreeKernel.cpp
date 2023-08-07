@@ -177,7 +177,7 @@ MStatus EmbreeKernel::build(const MObject& meshObject, const MBoundingBox& bbox,
 }
 
 
-std::vector<TriangleData> EmbreeKernel::queryIntersected(const TriangleData& triangleB) const
+std::vector<TriangleData> EmbreeKernel::intersectKernelTriangle(const TriangleData& triangleB) const
 {
     std::vector<TriangleData> intersectingA;
 
