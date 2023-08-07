@@ -68,6 +68,10 @@ void* IntersectionMarkerNode::creator()
     return new IntersectionMarkerNode();
 }
 
+void IntersectionMarkerNode::postConstructor() {
+    setExistWithoutInConnections(false);
+}
+
 
 
 MStatus IntersectionMarkerNode::initialize()
