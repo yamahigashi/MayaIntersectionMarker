@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <memory>
 #include <utility> // for std::pair
 #include <unordered_set>
 #include <unordered_map>
