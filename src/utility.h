@@ -54,6 +54,11 @@ struct TriangleData
         bbox.expand(v1);
         bbox.expand(v2);
     }
+
+    MPoint center() const
+    {
+        return (vertices[0] + vertices[1] + vertices[2]) / 3.0;
+    }
 };
 
 struct BoundingBox1D

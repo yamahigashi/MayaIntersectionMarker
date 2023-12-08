@@ -122,9 +122,9 @@ public:
                         IntersectionMarkerNode();
                         ~IntersectionMarkerNode() override;
 
-    static  void*       creator();
+    static     void*    creator();
     static  MStatus     initialize();
-
+               void     postConstructor() override;
             MStatus     postEvaluation(const  MDGContext& context, const MEvaluationNode& evaluationNode, PostEvaluationType evalType) override;
             MStatus     compute(const MPlug &plug, MDataBlock &dataBlock);
 
