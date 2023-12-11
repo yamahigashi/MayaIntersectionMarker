@@ -27,6 +27,7 @@ Follow the steps below to install the Maya Intersection Marker plugin:
 2. **Extract the ZIP File:** Once downloaded, extract the contents of the ZIP file.
 
 3. **Move Files to Maya Modules Folder:** Take the extracted files and move them to the Maya modules folder, typically located at `%USERPROFILE%\Documents\maya\modules`.
+<img src="https://raw.githubusercontent.com/yamahigashi/MayaIntersectionMarker/doc/doc/Install3.png" width="660">
 
 Note: `%USERPROFILE%` is an environment variable that corresponds to the current user's home directory. Make sure to check if your Maya modules folder is located in this directory.
 
@@ -45,6 +46,7 @@ Using the Maya Intersection Marker plugin is straightforward:
 1. **Select Two Meshes:** In the Maya scene, select two meshes that you want to check for intersections.
 
 2. **Run the Command:** After selecting the meshes, execute the menu `Window > Intersection Marker`, or run the `intersectionMarker` command in the command line or script editor.
+<img src="https://raw.githubusercontent.com/yamahigashi/MayaIntersectionMarker/doc/doc/Menu.png" width="660">
 
 This will visualize any intersections between the selected meshes directly within the viewport.
 
@@ -108,9 +110,10 @@ Maya Intersection Markerは、アニメーション中のメッシュの交差�
 ## インストール
 Maya Intersection Markerプラグインをインストールする手順は以下の通りです：
 
-1. ZIPファイルのダウンロード: このリポジトリの[Releases](https://github.com/yamahigashi/MayaIntersectionMarker/releases)ページに移動し、最新の[ZIP file](https://github.com/yamahigashi/MayaIntersectionMarker/releases/download/1.0.0/MayaIntersectionMarker.zip)をダウンロードします。
-2. ZIPファイルの展開: ダウンロードしたZIPファイルの内容を展開します。
-3. ファイルのMayaモジュールフォルダへの移動: 展開したファイルをMayaのモジュールフォルダに移動します。通常、このフォルダは `%USERPROFILE%\Documents\maya\modules` にあります。
+1. ZIPファイルの **ダウンロード**: このリポジトリの[Releases](https://github.com/yamahigashi/MayaIntersectionMarker/releases)ページに移動し、最新の[ZIP file](https://github.com/yamahigashi/MayaIntersectionMarker/releases/download/1.0.0/MayaIntersectionMarker.zip)をダウンロードします。
+2. ZIPファイルの**展開**: ダウンロードしたZIPファイルの内容を展開します。
+3. Maya**モジュールフォルダへの移動**: 展開したファイルを*Mayaのモジュールフォルダ*に移動します。通常、このフォルダは `%USERPROFILE%\Documents\maya\modules` (マイドキュメントのなかの maya フォルダ内)にあります。もし `modules` フォルダが存在しない場合、新規作成してください。
+<img src="https://raw.githubusercontent.com/yamahigashi/MayaIntersectionMarker/doc/doc/Install3.png" width="660">
 
 注意: %USERPROFILE%は、現在のユーザーのホームディレクトリに対応する環境変数です。Mayaのモジュールフォルダがこのディレクトリにあることを確認してください。
 
@@ -129,9 +132,10 @@ Maya Intersection Markerプラグインをインストールする手順は以�
 
 Maya Intersection Markerプラグインの使用は簡単です：
 
-1. 2つのメッシュを選択: Mayaのシーンで、交差をチェックしたい2つのメッシュを選択します。
+1. **2つのメッシュを選択:** Mayaのシーンで、交差をチェックしたい2つのメッシュを選択します。
 
-2. コマンドを実行: メッシュを選択した後、メニュー `Window > Intersection Marker` を実行するか、コマンドラインまたはスクリプトエディタで `intersectionMarker` コマンドを実行します。
+2. **コマンドを実行:** メッシュを選択した後、メニュー `Window > Intersection Marker` を実行するか、コマンドラインまたはスクリプトエディタで `intersectionMarker` コマンドを実行します。
+<img src="https://raw.githubusercontent.com/yamahigashi/MayaIntersectionMarker/doc/doc/Menu.png" width="660">
 
 
 ## ビルド手順
