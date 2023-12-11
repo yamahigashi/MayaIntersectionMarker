@@ -57,6 +57,7 @@ mkdir shared\win64
 
 copy /y ..\..\MayaIntersectionMarker.mod ..\
 copy /y ..\..\scripts\*.mel scripts
+copy /y ..\..\scripts\*.py scripts
 copy /y ..\..\lib\embree\bin\tbb12.dll shared\win64
 copy /y ..\..\lib\embree\bin\embree4.dll shared\win64
 copy /y ..\..\supplimental\colorscope\target\release\colorscope.exe shared\win64
