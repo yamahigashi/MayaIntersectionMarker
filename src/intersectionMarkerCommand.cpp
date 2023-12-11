@@ -84,6 +84,7 @@ MStatus IntersectionMarkerCommand::doIt(const MArgList& argList)
         MGlobal::displayError(errorMsg);
         return MStatus::kFailure;
     }
+    MFnDependencyNode(this->xformNode).setName("intersectionMarkerXform");
     status = dagMod.doIt();
     this->markerNode = MFnDagNode(this->xformNode).child(0, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);

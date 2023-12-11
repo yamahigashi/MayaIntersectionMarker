@@ -75,13 +75,43 @@ fn color_in_range(color: (u8, u8, u8), target: (u8, u8, u8), tolerance: u8) -> b
         && color.2 >= lower_bound.2 && color.2 <= upper_bound.2
 }
 
+
 fn main() {
     let opt = Opt::from_args();
-    let ratio = calculate_color_area(
-        opt.file_path,
-        opt.color,
-        opt.tolerance);
 
-    // println!("Ratio of target color: {:.2}%", ratio * 100.0);
-    println!("{}", ratio * 100.0);
+    // if file_path is directory, then iterate all files in the directory
+    // and calculate color area for each file
+    // if file_path is file, then calculate color area for the file
+    if opt.file_path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(opt.file_path) {
+            for entry in entries {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.is_file() {
+                    let ratio = calculate_color_area(
+                        path.clone(),
+                        opt.color,
+                        opt.tolerance);
+
+                    println!("{} {}", path.display(), ratio * 100.0);
+                }
+            }
+        } else {
+            println!("Directory not found.");
+        }
+
+        return;
+
+    } else if opt.file_path.is_file() {
+        let ratio = calculate_color_area(
+            opt.file_path,
+            opt.color,
+            opt.tolerance);
+        println!("{}", ratio * 100.0);
+        return;
+
+    } else {
+        println!("File not found.");
+        return;
+    }
 }
