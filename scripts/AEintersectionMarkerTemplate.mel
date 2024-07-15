@@ -19,6 +19,7 @@ proc _registerNodeHelp(string $type, string $cmd)
 
 global proc AEintersectionMarkerTemplate(string $nodename)
 {
+    editorTemplate -beginScrollLayout;
     editorTemplate -beginLayout "Intersection Marker Attributes" -collapse 0;
 
     {
@@ -61,8 +62,8 @@ global proc AEintersectionMarkerTemplate(string $nodename)
 
     AEdependNodeTemplate($nodename);
 
-    editorTemplate("-addExtraControls");
-    editorTemplate("-endScrollLayout");
+    editorTemplate -addExtraControls;
+    editorTemplate -endScrollLayout;
 }
 
 // AEIntersectionMarkerNodeTemplate($gAECurrentTab);
