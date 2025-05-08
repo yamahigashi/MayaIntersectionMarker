@@ -2,6 +2,8 @@
     Copyright (c) 2023 Takayoshi Matsumoto
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
+#define NO_CUDA
+
 #include <maya/MFnPlugin.h>
 #include <maya/MObject.h>
 
@@ -16,7 +18,7 @@
 #include "intersectionMarkerNode.h"
 #include "intersectionMarkerCommand.h"
 #include "intersectionMarkerDrawOverride.h"
-
+#include "kernel/MochiKernelImpl.h"
 
 const char* kAUTHOR = "Takayoshi Matsumoto";
 const char* kVERSION = "0.0.1";
@@ -120,6 +122,9 @@ MStatus initializePlugin(MObject obj)
 	  REGISTER_LOCATOR_NODE(IntersectionMarkerNode);
     REGISTER_DRAW_OVERRIDE(IntersectionMarkerNode, IntersectionMarkerDrawOverride);
     REGISTER_COMMAND(IntersectionMarkerCommand);
+    if (!initializeMochiOptiX()) { // Initialize OptiX context, pipeline etc.
+      throw std::runtime_error("Failed to initialize OptiX for MochiKernel");
+    }
 
     return MS::kSuccess;
 }
@@ -132,6 +137,7 @@ MStatus uninitializePlugin(MObject obj)
     DEREGISTER_COMMAND(IntersectionMarkerCommand);
     DEREGISTER_DRAW_OVERRIDE(IntersectionMarkerNode, IntersectionMarkerDrawOverride);
 	  DEREGISTER_NODE(IntersectionMarkerNode);
-
+    cleanupMochiOptiX(); // Cleanup OptiX resources
+                         //
     return MS::kSuccess;
 }

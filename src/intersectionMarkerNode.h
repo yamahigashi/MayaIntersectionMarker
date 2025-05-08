@@ -63,55 +63,68 @@ struct CacheResultType {
 };
 
 
-
-template <typename CacheKeyType, typename CacheValueType, typename HashFunc>
+template <typename CacheKeyType, typename CacheValueType, typename HashFunc = std::hash<CacheKeyType>>
 class LRUCache {
 private:
     size_t max_size_;
-    std::list<std::pair<CacheKeyType, CacheValueType>> list_;
-    std::unordered_map<CacheKeyType, typename std::list<std::pair<CacheKeyType, CacheValueType>>::iterator, HashFunc> map_;
+    std::list<std::pair<CacheKeyType, CacheValueType>> cache_list_;
+    std::unordered_map<CacheKeyType, typename std::list<std::pair<CacheKeyType, CacheValueType>>::iterator, HashFunc> cache_map_;
 
 public:
     LRUCache(size_t max_size) : max_size_(max_size) {}
 
-    void put(const CacheKeyType& key, const CacheValueType& value)
+    void put(const CacheKeyType& key, CacheValueType value)
     {
-        auto iter = map_.find(key);
-        if (iter != map_.end())
+        auto iter = cache_map_.find(key);
+
+        if (iter != cache_map_.end())
         {
-            // Update the existing value and move it to the front of the list
-            iter->second->second = value;
-            list_.splice(list_.begin(), list_, iter->second);
+            // Update the value of the existing key and move it to the front
+            iter->second->second = std::move(value);
+            cache_list_.splice(cache_list_.begin(), cache_list_, iter->second);
         }
         else
         {
-            // Add a new value to the cache
-            list_.emplace_front(key, value);
-            map_[key] = list_.begin();
+            // Add a new key-value pair to the front of the list
+            cache_list_.emplace_front(key, std::move(value));
+            cache_map_[key] = cache_list_.begin();
 
-            // If the cache is too large, remove the least recently used item
-            if (list_.size() > max_size_) {
-                map_.erase(list_.back().first);
-                list_.pop_back();
+            // Remove the last element if the cache size exceeds the max size
+            if (cache_list_.size() > max_size_)
+            {
+                auto lru = cache_list_.end();
+                --lru;
+                cache_map_.erase(lru->first);
+                cache_list_.pop_back();
             }
         }
     }
 
+    // Retrieves a value from the cache if iter exists
     CacheValueType get(const CacheKeyType& key)
     {
-        auto iter = map_.find(key);
-        if (iter != map_.end())
-        {
-            // Move the accessed item to the front of the list
-            list_.splice(list_.begin(), list_, iter->second);
-            return iter->second->second;
-        }
-        else
+        auto iter = cache_map_.find(key);
+        if (iter == cache_map_.end())
         {
             throw std::out_of_range("Key not found in cache");
         }
+
+        cache_list_.splice(cache_list_.begin(), cache_list_, iter->second);
+
+        return iter->second->second;
+    }
+
+    bool contains(const CacheKeyType& key) const
+    {
+        return cache_map_.find(key) != cache_map_.end();
+    }
+
+    size_t size() const
+    {
+        return cache_list_.size();
     }
 };
+
 
 using CacheKeyType = std::pair<int, int>;
 using CacheType = LRUCache<CacheKeyType, CacheResultType, pair_hash>;
@@ -154,6 +167,10 @@ public:
     static MObject      meshB;
     static MObject      smoothMeshA;
     static MObject      smoothMeshB;
+    static MObject      smoothModeA;
+    static MObject      smoothModeB;
+    static MObject      smoothLevelA;
+    static MObject      smoothLevelB;
     static MObject      offsetMatrixA;
     static MObject      offsetMatrixB;
     static MObject      restIntersected;
@@ -164,11 +181,6 @@ public:
     static MObject      showMeshB;
     static MObject      kernelType;
     static MObject      collisionMode;
-
-    static MObject      smoothModeA;
-    static MObject      smoothModeB;
-    static MObject      smoothLevelA;
-    static MObject      smoothLevelB;
 
     static MObject      outputIntersected;
     

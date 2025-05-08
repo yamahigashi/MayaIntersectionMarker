@@ -8,6 +8,7 @@ rem SET COMPILER=Visual Studio 15 2017 Win64
 SET COMPILER=Visual Studio 16 2019
 rem SET COMPILER=Visual Studio 17 2022
 
+call :build_for_maya 2026
 call :build_for_maya 2025
 call :build_for_maya 2024
 call :build_for_maya 2023

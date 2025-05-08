@@ -82,5 +82,5 @@ private:
             const MMatrix& offsetMatrix
     );
 
-    int prevChecksum = -1;
+    std::unordered_map<unsigned int, int> prevChecksums;
 };

@@ -1,16 +1,18 @@
 echo off
 setlocal
 
-SET MAYA_VERSION=2024
+SET MAYA_VERSION=2026
 SET BUILD="build\%MAYA_VERSION%"
 rem SET COMPILER=Visual Studio 15 2017 Win64
-SET COMPILER=Visual Studio 16 2019
+rem SET COMPILER=Visual Studio 16 2019
 rem SET COMPILER=Visual Studio 17 2022
+SET COMPILER=Ninja
 
 
 SET PFX=%~dp0
 SET EMBREE_DIR=%PFX%lib\embree
 SET GLM_DIR=%PFX%lib\glm
+
 cd /d %PFX%
 rmdir %BUILD% /s /q
 mkdir %BUILD%
@@ -35,4 +37,4 @@ cmake ^
     -DCMAKE_INSTALL_PREFIX="..\..\modules" ^
     -G "%COMPILER%" ..\..\
 
-cmake --build . --config Release --target Install
+cmake --build . --config Release --target install

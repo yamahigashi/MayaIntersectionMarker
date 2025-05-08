@@ -2,6 +2,7 @@
     Copyright (c) 2023 Takayoshi Matsumoto
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
+#define NO_CUDA
 
 #include "utility.h"
 
@@ -11,6 +12,7 @@
 #include "kernel/KDTreeKernel.h"
 #include "kernel/EmbreeKernel.h"
 #include "kernel/OctreeKernel.h"
+#include "kernel/MochiKernel.h"
 
 #include <omp.h>
 #include <string>
@@ -49,6 +51,8 @@ MObject IntersectionMarkerNode::meshA;
 MObject IntersectionMarkerNode::meshB;
 MObject IntersectionMarkerNode::smoothMeshA;
 MObject IntersectionMarkerNode::smoothMeshB;
+MObject IntersectionMarkerNode::smoothModeA;
+MObject IntersectionMarkerNode::smoothModeB;
 MObject IntersectionMarkerNode::offsetMatrixA;
 MObject IntersectionMarkerNode::offsetMatrixB;
 MObject IntersectionMarkerNode::restIntersected;
@@ -59,11 +63,6 @@ MObject IntersectionMarkerNode::showMeshA;
 MObject IntersectionMarkerNode::showMeshB;
 MObject IntersectionMarkerNode::kernelType;
 MObject IntersectionMarkerNode::collisionMode;
-
-MObject IntersectionMarkerNode::smoothModeA;
-MObject IntersectionMarkerNode::smoothModeB;
-MObject IntersectionMarkerNode::smoothLevelA;
-MObject IntersectionMarkerNode::smoothLevelB;
 
 MObject IntersectionMarkerNode::outputIntersected;
 CacheType IntersectionMarkerNode::cache(CACHE_SIZE);
@@ -178,28 +177,13 @@ MStatus IntersectionMarkerNode::initialize()
     status = addAttribute(smoothModeB);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    smoothLevelA = nAttr.create("smoothLevelA", "smoothLevelA", MFnNumericData::kInt, 0);
-    nAttr.setStorable(true);
-    nAttr.setKeyable(true);
-    nAttr.setWritable(true);
-    nAttr.setReadable(true);
-    status = addAttribute(smoothLevelA);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
-    smoothLevelB = nAttr.create("smoothLevelB", "smoothLevelB", MFnNumericData::kInt, 0);
-    nAttr.setStorable(true);
-    nAttr.setKeyable(true);
-    nAttr.setWritable(true);
-    nAttr.setReadable(true);
-    status = addAttribute(smoothLevelB);
-    CHECK_MSTATUS_AND_RETURN_IT(status);
-
     // Initialize Kernel
     kernelType = eAttr.create(KERNEL, KERNEL, 0, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
     eAttr.addField("BVH", 0);
     eAttr.addField("Octree", 1);
     eAttr.addField("KDTree", 2);
+    eAttr.addField("MochiRTX", 3);
     status = addAttribute(kernelType);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
@@ -290,16 +274,16 @@ MStatus IntersectionMarkerNode::postEvaluation(
     {
     }
     else if (
-        (evaluationNode.dirtyPlugExists(meshA, &status) && status ) || 
-        (evaluationNode.dirtyPlugExists(meshB, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(meshA,         &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(meshB,         &status) && status ) ||
         (evaluationNode.dirtyPlugExists(offsetMatrixA, &status) && status ) ||
         (evaluationNode.dirtyPlugExists(offsetMatrixB, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(kernelType, &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(kernelType,    &status) && status ) ||
         (evaluationNode.dirtyPlugExists(collisionMode, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(showMeshA, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(showMeshB, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(smoothModeA, &status) && status ) ||
-        (evaluationNode.dirtyPlugExists(smoothModeB, &status) && status )
+        (evaluationNode.dirtyPlugExists(showMeshA,     &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(showMeshB,     &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(smoothModeA,   &status) && status ) ||
+        (evaluationNode.dirtyPlugExists(smoothModeB,   &status) && status )
     ) {
         MDataBlock block = forceCache();
         MDataHandle meshAHandle = block.inputValue(meshA, &status);
@@ -323,6 +307,11 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     if (plug != outputIntersected) {
         // return MStatus::kUnknownParameter;
     }
+    MGlobal::displayInfo("Comput 1");
+
+    // if (!plug.isDirty()) {
+    //     return MStatus::kSuccess;
+    // }
 
     // Get necessary input data from the dataBlock. This is usually data from
     // the input attributes of the node.
@@ -360,18 +349,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         return status;
     }
 
-    MDataHandle smoothLevelAHandle = dataBlock.inputValue(smoothLevelA);
-    if(status != MStatus::kSuccess) {
-        MGlobal::displayError("Failed to get smoothLevelA data handle");
-        return status;
-    }
-
-    MDataHandle smoothLevelBHandle = dataBlock.inputValue(smoothLevelB);
-    if(status != MStatus::kSuccess) {
-        MGlobal::displayError("Failed to get smoothLevelB data handle");
-        return status;
-    }
-
     MDataHandle smoothMeshAHandle = dataBlock.inputValue(smoothMeshA);
     if(status != MStatus::kSuccess) {
         MGlobal::displayError("Failed to get smoothMeshA data handle");
@@ -383,14 +360,13 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         MGlobal::displayError("Failed to get smoothMeshB data handle");
         return status;
     }
+    MGlobal::displayInfo("Comput 2");
 
     int smoothModeAObject = smoothModeAHandle.asInt();
     int smoothModeBObject = smoothModeBHandle.asInt();
 
     smoothModeAHandle.setClean();
     smoothModeBHandle.setClean();
-    smoothLevelAHandle.setClean();
-    smoothLevelBHandle.setClean();
 
     // Get the MObject of the meshes
     // MObject meshAObject = meshAHandle.asMesh();
@@ -436,11 +412,10 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     // If the checksums are the same, then we don't need to do anything
     // because the meshes have not changed.
     if (checkA == newCheckA && checkB == newCheckB) {
-        vertexChecksumAHandle.setClean();
-        vertexChecksumBHandle.setClean();
-
+        dataBlock.setClean(plug);
         return MS::kSuccess;
     }
+    MGlobal::displayInfo("Comput 3");
 
     vertexChecksumAHandle.set(newCheckA);
     vertexChecksumAHandle.setClean();
@@ -460,6 +435,7 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         this->intersectedFaceIdsB = res.second;
 
     } catch (const std::out_of_range&) {
+    MGlobal::displayInfo("Comput 4");
 
         // The result is not in the cache
         this->intersectedFaceIdsA.clear();
@@ -469,8 +445,11 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         std::shared_ptr<SpatialDivisionKernel> kernelA = getActiveKernel();
         MBoundingBox bboxA = getBoundingBox(meshA);
         bboxA.transformUsing(offsetA);
+    MGlobal::displayInfo("Comput 5");
         status = kernelA->build(meshAObject, bboxA, offsetA);
+    MGlobal::displayInfo("Comput 6");
         CHECK_MSTATUS_AND_RETURN_IT(status);
+    MGlobal::displayInfo("Comput 7");
 
         MDataHandle modeHandle = dataBlock.inputValue(collisionMode, &status);
         CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -478,6 +457,7 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         if (mode == 0) {
             // Kernel A vs Mesh B Triangles
             // check intersections
+    MGlobal::displayInfo("Comput 8");
             status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
             if(status != MStatus::kSuccess) {
                 MGlobal::displayError("Failed to get offset data handle");
@@ -485,6 +465,7 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
             }
 
         } else if (mode == 1) {
+    MGlobal::displayInfo("Comput 9");
             // Kernel A vs Kernel B
             //
             // Build kernel B
@@ -540,7 +521,7 @@ MStatus IntersectionMarkerNode::checkIntersections(
     MMatrix offset
 ){
     MStatus status;
-    // MGlobal::displayInfo("checkIntersections...");
+    MGlobal::displayInfo("checkIntersections...");
     intersectedFaceIdsA.clear();
     intersectedFaceIdsB.clear();
 
@@ -628,11 +609,13 @@ std::shared_ptr<SpatialDivisionKernel> IntersectionMarkerNode::getActiveKernel()
     // Create the appropriate kernel based on the attribute value
     switch (kernelValue) {
     case 0: // Embree
-        return std::make_unique<EmbreeKernel>();
+        return std::make_unique<MochiKernel>();
     case 1: // Octree
         return std::make_unique<OctreeKernel>();
     case 2: // KDTree
         return std::make_unique<KDTreeKernel>();
+    case 3: // Mochi
+        return std::make_unique<EmbreeKernel>();
     default:
         return nullptr;
     }

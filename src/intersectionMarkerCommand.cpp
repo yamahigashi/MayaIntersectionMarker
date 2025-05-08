@@ -3,6 +3,7 @@
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
 #pragma once
+#define NO_CUDA
 
 #include "intersectionMarkerNode.h"
 #include "intersectionMarkerCommand.h"

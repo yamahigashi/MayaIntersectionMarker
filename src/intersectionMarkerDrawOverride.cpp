@@ -2,6 +2,7 @@
     Copyright (c) 2023 Takayoshi Matsumoto
     You may use, distribute, or modify this code under the terms of the MIT license.
 */
+#define NO_CUDA
 
 #include "IntersectionMarkerNode.h"
 #include "IntersectionMarkerData.h"
@@ -12,6 +13,7 @@
 #include <unordered_set>
 
 #include <maya/MGlobal.h>
+#include <maya/MObjectHandle.h>
 #include <maya/MFnDependencyNode.h>
 #include <maya/MFnMesh.h>
 #include <maya/MDagPath.h>
@@ -92,6 +94,10 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
         return data;
     }
 
+    MObjectHandle handle(drawNode);
+    unsigned int nodeId = handle.hashCode();
+    int prevChecksum = prevChecksums[nodeId];
+
     int checkSumA;
     int checkSumB;
     status = node->getChecksumA(checkSumA);
@@ -102,6 +108,8 @@ MUserData* IntersectionMarkerDrawOverride::prepareForDraw(
     if (newChecksum > 0 && newChecksum == prevChecksum) {
         return data;
     }
+
+    prevChecksums[nodeId] = newChecksum;
 
     // Reset face data
     data->faces.clear();

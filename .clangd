@@ -1,0 +1,19 @@
+CompileFlags:
+  Add:                      # ここは「ビルドには入っていないけど編集時に必要」なもの
+    - -std=c++11            # CMake が c++17 で生成しているなら上書き
+    - -I./lib/glm
+    - -I./lib/embree/include
+    - "-IC:/Program Files/Autodesk/Maya2026/devkit/include"
+    - "-IC:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/include"
+    - "-IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt"
+    - "-IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared"
+    - "-IC:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include"
+    - "-IC:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0/include"
+    - "-isystemC:/Vcpkg/installed/x64-windows/include"
+    - -DPROJECT_VERSION=\"0.1.0\"
+
+# Windows で cl.exe 系の場合（必ず実ファイル名を書く）
+# query-driver はワイルドカードも使えます
+Diagnostics:
+  ClangTidy:
+    Add: modernize-*        # お好みで

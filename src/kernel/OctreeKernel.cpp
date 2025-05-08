@@ -1,3 +1,4 @@
+#define NO_CUDA
 #include "OctreeKernel.h"
 
 #include <maya/MMatrix.h>
