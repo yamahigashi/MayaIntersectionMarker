@@ -62,7 +62,6 @@ MochiKernel::~MochiKernel() {
 
 MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, const MMatrix& offsetMatrix) {
     MStatus status;
-    MGlobal::displayInfo("build 0");
 
     // 1. Cleanup previous data if any
     if (_optixData) {
@@ -72,7 +71,6 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
         _hostOriginalIndices.clear();
         _hostOriginalFaceIndices.clear();
     }
-    MGlobal::displayInfo("build 1");
 
     // 2. Extract Mesh Data from Maya Object
     MFnMesh meshFn(meshObject, &status);
@@ -80,7 +78,6 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
         MGlobal::displayError("MochiKernel::build: MFnMesh failed");
         return status;
     }
-    MGlobal::displayInfo("build 2");
 
     MPointArray mayaVertices;
     meshFn.getPoints(mayaVertices, MSpace::kObject); // Get vertices in object space
@@ -88,10 +85,8 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
     MIntArray triangleCounts;
     MIntArray triangleVertices;
     meshFn.getTriangles(triangleCounts, triangleVertices); // Get triangulation indices
-    MGlobal::displayInfo("build 3");
 
     if (mayaVertices.length() == 0 || triangleVertices.length() == 0) {
-    MGlobal::displayInfo("build 4");
          MGlobal::displayWarning("MochiKernel::build: Mesh has no vertices or triangles.");
          return MStatus::kSuccess; // Nothing to build
     }
@@ -100,7 +95,6 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
     std::vector<Point_cu> hostVertices;
     hostVertices.reserve(mayaVertices.length());
     Transfo transform = MMatrixToTransfo(offsetMatrix);
-    MGlobal::displayInfo("build 5");
 
     _hostOriginalVertices.reserve(mayaVertices.length()); // Store transformed vertices
 
@@ -114,13 +108,11 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
         hostVertices.push_back(transformed_p);
         _hostOriginalVertices.push_back(transformed_p); // Keep a copy
     }
-    MGlobal::displayInfo("build 6");
 
     // Prepare triangle indices and face indices
     std::vector<int> hostIndices;
     hostIndices.reserve(triangleVertices.length());
     _hostOriginalFaceIndices.reserve(triangleVertices.length() / 3); // Store face index per triangle
-    MGlobal::displayInfo("build 7");
 
     int currentVertexIndex = 0;
     for (unsigned int faceIdx = 0; faceIdx < triangleCounts.length(); ++faceIdx) { // Iterate through polygons (faces)
@@ -140,20 +132,17 @@ MStatus MochiKernel::build(const MObject& meshObject, const MBoundingBox& bbox, 
             currentVertexIndex += 3;
         }
     }
-    MGlobal::displayInfo("build 8");
 
     _hostOriginalIndices = hostIndices; // Keep a copy
 
     // 4. Call Bridging Function to Build OptiX BVH and initialize _optixData
     _optixData = mochiKernelBuild_impl(hostVertices, hostIndices, _hostOriginalFaceIndices);
-    MGlobal::displayInfo("build 9");
 
     if (!_optixData) {
         MGlobal::displayError("MochiKernel::build: Failed to build OptiX BVH (mochiKernelBuild_impl returned null).");
         // Cleanup host copies if build failed? Maybe not necessary as they are std::vector
         return MStatus::kFailure;
     }
-    MGlobal::displayInfo("build 10");
 
     return MStatus::kSuccess;
 }
@@ -188,6 +177,7 @@ std::vector<TriangleData> MochiKernel::intersectKernelTriangle(const TriangleDat
 }
 
 K2KIntersection MochiKernel::intersectKernelKernel(SpatialDivisionKernel& otherKernel) const {
+    MGlobal::displayWarning("MochiKernel::intersectKernelKernel: begin");
     K2KIntersection result; // Pair of std::vector<TriangleData>
      if (!_optixData) {
          MGlobal::displayWarning("MochiKernel::intersectKernelKernel: OptiX data not built for 'this'.");
@@ -210,10 +200,12 @@ K2KIntersection MochiKernel::intersectKernelKernel(SpatialDivisionKernel& otherK
     std::vector<MochiCollisionPairPOD> collisionPairsPOD;
     bool selfIntersection = (this == otherMochiKernel);
     mochiKernelIntersect_impl(_optixData, otherMochiKernel->_optixData, selfIntersection, collisionPairsPOD);
+    MGlobal::displayInfo("MochiKernel::intersectKernelKernel: after mochiKernelIntersect_impl");
 
     // 3. Convert results back to K2KIntersection
     result.first.reserve(collisionPairsPOD.size());  // Collisions from kernel A's perspective
     result.second.reserve(collisionPairsPOD.size()); // Collisions from kernel B's perspective
+    MGlobal::displayInfo("MochiKernel::intersectKernelKernel: after reserve");
 
     for (const auto& pairPOD : collisionPairsPOD) {
         // Reconstruct TriangleData for the triangle from kernel A (this)

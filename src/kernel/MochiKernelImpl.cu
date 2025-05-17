@@ -833,9 +833,6 @@ extern "C" bool initializeMochiOptiX()
         std::cout << "Pipeline created." << std::endl;
 
         // 6. Create Shader Binding Table (SBT)
-        //    (SBT creation logic remains the same as previous version)
-        // ... (Allocate g_d_sbt_* records, pack headers, copy data) ...
-        // --- Create Shader Binding Table (SBT) ---
         std::cout << "Creating SBT..." << std::endl;
 
         // RayGen Record
@@ -1086,6 +1083,7 @@ extern "C" MochiKernelData_impl* mochiKernelBuild_impl(
 
     } catch (const std::exception& e) {
         std::cerr << "Exception during MochiKernel build: " << e.what() << std::endl;
+        std::cout << "Exception during MochiKernel build: " << e.what() << std::endl;
         if (data) {
              mochiKernelDestroy_impl(data);
              data = nullptr;
@@ -1213,9 +1211,9 @@ extern "C" void mochiKernelIntersect_impl(
          std::cerr << "Cannot intersect, kernels not built or OptiX not initialized/pipelined." << std::endl;
          return;
      }
-     // std::cout << "mochiKernelIntersect_impl starting..." << std::endl;
-     // std::cout << "  Kernel A Tris: " << handleA->numOriginalTriangles << ", Verts: " << handleA->numVertices << std::endl;
-     // std::cout << "  Kernel B Tris: " << handleB->numOriginalTriangles << ", Verts: " << handleB->numVertices << std::endl;
+     std::cout << "mochiKernelIntersect_impl starting..." << std::endl;
+     std::cout << "  Kernel A Tris: " << handleA->numOriginalTriangles << ", Verts: " << handleA->numVertices << std::endl;
+     std::cout << "  Kernel B Tris: " << handleB->numOriginalTriangles << ", Verts: " << handleB->numVertices << std::endl;
 
      CUdeviceptr d_params = 0;
      CUdeviceptr d_collisionBuffer = 0;
@@ -1230,6 +1228,7 @@ extern "C" void mochiKernelIntersect_impl(
          params.meshAIndices = reinterpret_cast<int3*>(handleA->d_original_indices);
          params.meshANumOriginalTriangles = handleA->numOriginalTriangles;
          params.selfIntersectionCheck = selfIntersection;
+         std::cout << "mochiKernelIntersect_impl params set1." << std::endl;
 
          // 2. Allocate Output Buffer & Counter
          // Estimate max collisions - needs tuning! Consider a resize strategy if needed.
@@ -1239,11 +1238,14 @@ extern "C" void mochiKernelIntersect_impl(
          CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_collisionBuffer), maxCollisions * sizeof(MochiCollisionPairPOD)));
          CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_collisionCounter), sizeof(unsigned int)));
          CUDA_CHECK(cudaMemset(reinterpret_cast<void*>(d_collisionCounter), 0, sizeof(unsigned int)));
+         std::cout << "mochiKernelIntersect_impl buffers allocated." << std::endl;
          params.collisionBuffer = reinterpret_cast<MochiCollisionPairPOD*>(d_collisionBuffer);
          params.collisionCounter = reinterpret_cast<unsigned int*>(d_collisionCounter);
+         std::cout << "mochiKernelIntersect_impl params set2-0." << std::endl;
 
          // Copy params to device constant memory
          CUDA_CHECK(cudaMemcpyToSymbol(params, &params, sizeof(Params), 0, cudaMemcpyHostToDevice));
+         std::cout << "mochiKernelIntersect_impl params set2-1." << std::endl;
 
 
          // 3. Update SBT Hit Record Data Pointers dynamically before launch
@@ -1260,6 +1262,7 @@ extern "C" void mochiKernelIntersect_impl(
          hgRecords[1].numOriginalTriangles = handleB->numOriginalTriangles;
 
          CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(g_d_sbt_hitgroup_records), hgRecords, sizeof(HitGroupData) * 2, cudaMemcpyHostToDevice)); // Write updated SBT
+         std::cout << "mochiKernelIntersect_impl SBT updated." << std::endl;
 
 
          // 4. Launch OptiX
@@ -1275,6 +1278,7 @@ extern "C" void mochiKernelIntersect_impl(
                 3,                             // Launch dimension Y (one thread per edge of the source triangle)
                 1                              // Launch dimension Z
             ));
+            std::cout << "mochiKernelIntersect_impl OptiX launch finished." << std::endl;
            // OPTIX_CHECK(optixLaunch(
            //       g_optixPipeline,
            //       0, // stream
@@ -1288,6 +1292,7 @@ extern "C" void mochiKernelIntersect_impl(
              CUDA_CHECK(cudaDeviceSynchronize());
              // std::cout << "  OptiX Launch finished." << std::endl;
          } else {
+            std::cout << "mochiKernelIntersect_impl skipping OptiX Launch (0 source triangles)." << std::endl;
            // std::cout << "  Skipping OptiX Launch (0 source triangles)." << std::endl;
          }
 
@@ -1304,11 +1309,13 @@ extern "C" void mochiKernelIntersect_impl(
              outCollisionPairs.resize(numCollisionsFound);
              CUDA_CHECK(cudaMemcpy(outCollisionPairs.data(), reinterpret_cast<const void*>(d_collisionBuffer), numCollisionsFound * sizeof(MochiCollisionPairPOD), cudaMemcpyDeviceToHost));
          }
+            std::cout << "mochiKernelIntersect_impl results copied back." << std::endl;
 
          // 6. Cleanup temporary buffers
          CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_collisionBuffer)));
          CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_collisionCounter)));
          // cudaFree(d_params); // d_params was not allocated with cudaMalloc
+            std::cout << "mochiKernelIntersect_impl cleanup done." << std::endl;
 
      } catch (const std::exception& e) {
           std::cerr << "Exception during MochiKernel intersection: " << e.what() << std::endl;

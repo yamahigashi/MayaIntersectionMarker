@@ -307,7 +307,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
     if (plug != outputIntersected) {
         // return MStatus::kUnknownParameter;
     }
-    MGlobal::displayInfo("Comput 1");
 
     // if (!plug.isDirty()) {
     //     return MStatus::kSuccess;
@@ -360,7 +359,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         MGlobal::displayError("Failed to get smoothMeshB data handle");
         return status;
     }
-    MGlobal::displayInfo("Comput 2");
 
     int smoothModeAObject = smoothModeAHandle.asInt();
     int smoothModeBObject = smoothModeBHandle.asInt();
@@ -415,7 +413,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         dataBlock.setClean(plug);
         return MS::kSuccess;
     }
-    MGlobal::displayInfo("Comput 3");
 
     vertexChecksumAHandle.set(newCheckA);
     vertexChecksumAHandle.setClean();
@@ -435,7 +432,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         this->intersectedFaceIdsB = res.second;
 
     } catch (const std::out_of_range&) {
-    MGlobal::displayInfo("Comput 4");
 
         // The result is not in the cache
         this->intersectedFaceIdsA.clear();
@@ -445,11 +441,8 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         std::shared_ptr<SpatialDivisionKernel> kernelA = getActiveKernel();
         MBoundingBox bboxA = getBoundingBox(meshA);
         bboxA.transformUsing(offsetA);
-    MGlobal::displayInfo("Comput 5");
         status = kernelA->build(meshAObject, bboxA, offsetA);
-    MGlobal::displayInfo("Comput 6");
         CHECK_MSTATUS_AND_RETURN_IT(status);
-    MGlobal::displayInfo("Comput 7");
 
         MDataHandle modeHandle = dataBlock.inputValue(collisionMode, &status);
         CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -457,7 +450,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
         if (mode == 0) {
             // Kernel A vs Mesh B Triangles
             // check intersections
-    MGlobal::displayInfo("Comput 8");
             status = checkIntersections(meshAObject, meshBObject, kernelA, offsetB);
             if(status != MStatus::kSuccess) {
                 MGlobal::displayError("Failed to get offset data handle");
@@ -465,7 +457,6 @@ MStatus IntersectionMarkerNode::compute(const MPlug &plug, MDataBlock &dataBlock
             }
 
         } else if (mode == 1) {
-    MGlobal::displayInfo("Comput 9");
             // Kernel A vs Kernel B
             //
             // Build kernel B

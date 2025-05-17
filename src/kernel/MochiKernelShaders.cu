@@ -236,10 +236,10 @@ extern "C" __global__ void __anyhit__processHit()
         // Identify the original edge segment E'
         Point_cu edgeB_Start, edgeB_End;
         switch (edgeInOrigB) {
-            case 0: edgeB_Start = vB0; edgeB_End = vB1; break;
-            case 1: edgeB_Start = vB1; edgeB_End = vB2; break;
-            case 2: edgeB_Start = vB2; edgeB_End = vB0; break;
-            default: return;
+            case 0: { edgeB_Start = vB0; edgeB_End = vB1; break; }
+            case 1: { edgeB_Start = vB1; edgeB_End = vB2; break; }
+            case 2: { edgeB_Start = vB2; edgeB_End = vB0; break; }
+            default: { return; }
         }
 
         // Calculate intersection point P
